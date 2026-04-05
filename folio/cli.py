@@ -27,7 +27,8 @@ from folio.config import (
     VALID_THEMES,
     load_config,
 )
-from folio.github import fetch_github_data
+from folio.github import fetch_github_data, get_github_token
+from github import Github
 from folio.git import get_fork_diff
 from folio.summarize import enrich_data, SummaryCache
 from folio.render import render_profile, render_readme, render_style, render_svg
@@ -227,6 +228,24 @@ def generate(
 # init command
 # ---------------------------------------------------------------------------
 
+def _fetch_user_repos(token: str) -> list[dict]:
+    """Fetch all repos (public + private) the user has access to."""
+    gh = Github(token)
+    user = gh.get_user()
+    repos = []
+    for repo in user.get_repos(sort="updated"):
+        repos.append({
+            "name": repo.name,
+            "description": repo.description or "",
+            "language": repo.language or "",
+            "private": repo.private,
+            "fork": repo.fork,
+            "stars": repo.stargazers_count,
+            "parent": repo.parent.full_name if repo.fork and repo.parent else None,
+        })
+    return repos
+
+
 @app.command()
 def init(
     output: str = typer.Option(".profile.yml", "--output", "-o", help="Output config file path."),
@@ -234,19 +253,107 @@ def init(
     """Interactive wizard to create a new .profile.yml config file."""
     console.print("[bold]Folio Init — Create your profile config[/bold]\n")
 
-    # Profile section
-    name = typer.prompt("Your name")
-    tagline = typer.prompt("Tagline", default="")
-    location = typer.prompt("Location", default="")
+    # ── GitHub auth ──────────────────────────────────────
+    console.print("Connecting to GitHub...")
+    try:
+        token = get_github_token()
+    except RuntimeError as e:
+        console.print(f"[red]{e}[/red]")
+        raise typer.Exit(1)
+
+    gh = Github(token)
+    gh_user = gh.get_user()
+    console.print(f"Authenticated as [bold]{gh_user.login}[/bold] ({gh_user.name or gh_user.login})\n")
+
+    # ── Profile section ──────────────────────────────────
+    name = typer.prompt("Your name", default=gh_user.name or gh_user.login)
+    tagline = typer.prompt("Tagline", default=gh_user.bio or "")
+    location = typer.prompt("Location", default=gh_user.location or "")
     resume_url = typer.prompt("Resume URL", default="")
 
     # Social links
     console.print("\n[bold]Social Links[/bold]")
-    twitter = typer.prompt("Twitter handle", default="")
-    linkedin = typer.prompt("LinkedIn handle", default="")
-    website = typer.prompt("Website URL", default="")
+    twitter = typer.prompt("Twitter/X handle", default="")
+    linkedin = typer.prompt("LinkedIn username", default="")
+    website = typer.prompt("Website URL", default=gh_user.blog or "")
 
-    # AI config
+    # ── Fetch repos ──────────────────────────────────────
+    console.print("\nFetching your repositories...")
+    all_repos = _fetch_user_repos(token)
+    public_repos = [r for r in all_repos if not r["private"]]
+    private_repos = [r for r in all_repos if r["private"]]
+    fork_repos = [r for r in all_repos if r["fork"]]
+
+    console.print(f"Found [bold]{len(all_repos)}[/bold] repos ({len(public_repos)} public, {len(private_repos)} private, {len(fork_repos)} forks)\n")
+
+    # ── Select public repos ──────────────────────────────
+    console.print("[bold]Public Repos[/bold]")
+    console.print("Select which public repos to show on your profile.")
+    console.print("Enter numbers separated by commas, 'all' for all, or 'none' to skip.\n")
+
+    for i, repo in enumerate(public_repos, 1):
+        lang = f" [{repo['language']}]" if repo["language"] else ""
+        stars = f" ★{repo['stars']}" if repo["stars"] else ""
+        fork_note = f" (fork of {repo['parent']})" if repo["fork"] else ""
+        console.print(f"  {i:3}. {repo['name']}{lang}{stars}{fork_note}")
+
+    console.print()
+    selection = typer.prompt("Include", default="all")
+
+    included_public: list[str] = []
+    if selection.strip().lower() == "all":
+        included_public = [r["name"] for r in public_repos]
+    elif selection.strip().lower() != "none":
+        try:
+            indices = [int(x.strip()) - 1 for x in selection.split(",")]
+            included_public = [public_repos[i]["name"] for i in indices if 0 <= i < len(public_repos)]
+        except (ValueError, IndexError):
+            console.print("[yellow]Couldn't parse selection — including all public repos.[/yellow]")
+            included_public = [r["name"] for r in public_repos]
+
+    # ── Select private repos ─────────────────────────────
+    include_entries: list[dict] = [{"name": n} for n in included_public]
+
+    if private_repos:
+        console.print(f"\n[bold]Private Repos[/bold]")
+        console.print("Private repos show a summary but no GitHub link.")
+        console.print("Enter numbers separated by commas, or 'none' to skip.\n")
+
+        for i, repo in enumerate(private_repos, 1):
+            lang = f" [{repo['language']}]" if repo["language"] else ""
+            console.print(f"  {i:3}. {repo['name']}{lang}")
+
+        console.print()
+        priv_selection = typer.prompt("Include private repos", default="none")
+
+        if priv_selection.strip().lower() != "none":
+            try:
+                indices = [int(x.strip()) - 1 for x in priv_selection.split(",")]
+                for i in indices:
+                    if 0 <= i < len(private_repos):
+                        repo = private_repos[i]
+                        reason = typer.prompt(
+                            f"  Reason for '{repo['name']}' (shown instead of link)",
+                            default="Private repository",
+                        )
+                        include_entries.append({"name": repo["name"], "private_reason": reason})
+            except (ValueError, IndexError):
+                console.print("[yellow]Couldn't parse selection — skipping private repos.[/yellow]")
+
+    # ── Exclude repos ────────────────────────────────────
+    console.print(f"\n[bold]Exclude Repos[/bold]")
+    exclude_input = typer.prompt("Repos to hide (comma-separated names, or 'none')", default="none")
+    exclude_list: list[str] = []
+    if exclude_input.strip().lower() != "none":
+        exclude_list = [x.strip() for x in exclude_input.split(",") if x.strip()]
+
+    # ── Forks ────────────────────────────────────────────
+    show_forks = typer.confirm("Show fork repos?", default=True)
+    summarize_diffs = False
+    if show_forks:
+        summarize_diffs = typer.confirm("Summarize what you changed in forks (uses AI)?", default=True)
+
+    # ── AI config ────────────────────────────────────────
     console.print(f"\n[bold]AI Configuration[/bold] (providers: {', '.join(sorted(VALID_PROVIDERS))})")
     while True:
         provider = typer.prompt("AI provider", default="anthropic")
@@ -254,10 +361,19 @@ def init(
             break
         console.print(f"[red]Invalid provider. Choose from: {', '.join(sorted(VALID_PROVIDERS))}[/red]")
 
-    model_default = "claude-sonnet-4-20250514" if provider == "anthropic" else "gpt-4o"
-    model = typer.prompt("AI model", default=model_default)
+    model_defaults = {
+        "anthropic": "claude-sonnet-4-20250514",
+        "openai": "gpt-4o",
+        "ollama": "llama3",
+        "openrouter": "anthropic/claude-sonnet-4-20250514",
+    }
+    model = typer.prompt("AI model", default=model_defaults.get(provider, ""))
 
-    # Stats
+    base_url = ""
+    if provider == "ollama":
+        base_url = typer.prompt("Ollama base URL", default="http://localhost:11434")
+
+    # ── Stats ────────────────────────────────────────────
     console.print(f"\n[bold]Stats Range[/bold] (options: {', '.join(sorted(VALID_RANGES))})")
     while True:
         stats_range = typer.prompt("Stats range", default="3mo")
@@ -265,7 +381,7 @@ def init(
             break
         console.print(f"[red]Invalid range. Choose from: {', '.join(sorted(VALID_RANGES))}[/red]")
 
-    # Theme
+    # ── Theme ────────────────────────────────────────────
     console.print(f"\n[bold]Theme[/bold] (options: {', '.join(sorted(VALID_THEMES))})")
     while True:
         theme = typer.prompt("Theme", default="dark")
@@ -273,31 +389,34 @@ def init(
             break
         console.print(f"[red]Invalid theme. Choose from: {', '.join(sorted(VALID_THEMES))}[/red]")
 
-    # Build config dict
+    # ── Build config ─────────────────────────────────────
     raw: dict = {
         "profile": {
             "name": name,
-            "tagline": tagline or None,
-            "location": location or None,
-            "resume_url": resume_url or None,
+            "tagline": tagline or "",
+            "location": location or "",
+            "resume_url": resume_url or "",
+            "avatar": "",
             "social": {
-                "twitter": twitter or None,
-                "linkedin": linkedin or None,
-                "website": website or None,
+                "twitter": twitter or "",
+                "linkedin": linkedin or "",
+                "website": website or "",
             },
         },
         "ai": {
             "provider": provider,
             "model": model,
+            "base_url": base_url,
         },
         "repos": {
-            "include": None,
-            "exclude": [],
-            "forks": {"show": False, "summarize_diff": False},
+            "include": include_entries if include_entries else None,
+            "exclude": exclude_list,
+            "forks": {"show": show_forks, "summarize_diff": summarize_diffs},
         },
         "stats": {
             "range": stats_range,
-            "show": ["commits", "pull_requests", "issues", "stars_earned"],
+            "show": ["commits", "pull_requests", "issues", "streak", "top_languages", "stars_earned"],
+            "language_count": 6,
         },
         "theme": {
             "name": theme,
@@ -313,9 +432,10 @@ def init(
         raise typer.Exit(1)
 
     out_path = Path(output)
-    out_path.write_text(yaml.dump(raw, default_flow_style=False, allow_unicode=True), encoding="utf-8")
-    console.print(f"\n[bold green]Config written to {out_path}[/bold green]")
-    console.print("Run [cyan]folio generate[/cyan] to build your profile.")
+    out_path.write_text(yaml.dump(raw, default_flow_style=False, allow_unicode=True, sort_keys=False), encoding="utf-8")
+    console.print(f"\n[bold green]✓ Config written to {out_path}[/bold green]")
+    console.print(f"  {len(include_entries)} repos selected")
+    console.print("  Run [cyan]folio generate[/cyan] to build your profile.")
 
 
 # ---------------------------------------------------------------------------
