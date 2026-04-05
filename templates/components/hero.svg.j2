@@ -1,18 +1,68 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" fill="none">
-  <rect width="800" height="200" fill="#151519"/>
-  <text x="40" y="60" font-family="ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace" font-size="28" font-weight="700" fill="#f5f5f8">{{ profile.name }}</text>
-  <text x="40" y="90" font-family="ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace" font-size="14" fill="#e0e0e6">{{ profile.tagline }}</text>
-  <line x1="40" y1="110" x2="760" y2="110" stroke="{{ accent }}" stroke-width="1" opacity="0.4"/>
+{% if theme == "light" %}
+{% set bg = "#f8f7f4" %}
+{% set fg = "#2a2a30" %}
+{% set fg_bright = "#111115" %}
+{% set fg_dim = "#6e6e78" %}
+{% set border = "#d8d8e0" %}
+{% else %}
+{% set bg = "#151519" %}
+{% set fg = "#e0e0e6" %}
+{% set fg_bright = "#f5f5f8" %}
+{% set fg_dim = "#888899" %}
+{% set border = "#303040" %}
+{% endif %}
+{% set mono = "ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace" %}
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 230" fill="none">
+  <rect width="800" height="230" fill="{{ bg }}"/>
+
+  <!-- Name & tagline -->
+  <text x="40" y="55" font-family="{{ mono }}" font-size="28" font-weight="700" fill="{{ fg_bright }}">{{ profile.name }}</text>
+  <text x="40" y="82" font-family="{{ mono }}" font-size="14" fill="{{ fg }}">{{ profile.tagline }}</text>
+
+  <!-- Accent line -->
+  <line x1="40" y1="105" x2="760" y2="105" stroke="{{ accent }}" stroke-width="1" opacity="0.4"/>
+
+  <!-- Language bar -->
+  {% if stats.languages %}
+  {% set ns = namespace(offset=0) %}
+  {% for lang, pct in stats.languages.items() %}
+  {% set seg_width = (pct / 100 * 720) | round | int %}
+  <rect x="{{ 40 + ns.offset }}" y="120" width="{{ seg_width }}" height="4" fill="{{ lang_color(lang) }}"/>
+  {% set ns.offset = ns.offset + seg_width + 2 %}
+  {% endfor %}
+  {% set ns.lx = 40 %}
+  {% for lang, pct in stats.languages.items() %}
+  <rect x="{{ ns.lx }}" y="138" width="8" height="8" fill="{{ lang_color(lang) }}"/>
+  <text x="{{ ns.lx + 12 }}" y="146" font-family="{{ mono }}" font-size="10" fill="{{ fg_dim }}">{{ lang }} {{ pct }}%</text>
+  {% set ns.lx = ns.lx + (lang | length * 7) + (pct | string | length * 7) + 32 %}
+  {% endfor %}
+  {% endif %}
+
+  <!-- Stats row -->
+  {% set stat_y = 190 %}
+  {% set stat_label_y = 210 %}
+  {% set sx = namespace(x=40) %}
   {% if "commits" in stats_show %}
-  <text x="40" y="145" font-family="ui-monospace, monospace" font-size="24" font-weight="700" fill="#f5f5f8">{{ stats.commits }}</text>
-  <text x="40" y="165" font-family="ui-monospace, monospace" font-size="10" fill="#888899" letter-spacing="1">COMMITS</text>
+  <text x="{{ sx.x }}" y="{{ stat_y }}" font-family="{{ mono }}" font-size="22" font-weight="700" fill="{{ fg_bright }}">{{ stats.commits }}</text>
+  <text x="{{ sx.x }}" y="{{ stat_label_y }}" font-family="{{ mono }}" font-size="9" fill="{{ fg_dim }}" letter-spacing="1">COMMITS</text>
+  {% set sx.x = sx.x + 120 %}
   {% endif %}
   {% if "pull_requests" in stats_show %}
-  <text x="180" y="145" font-family="ui-monospace, monospace" font-size="24" font-weight="700" fill="#f5f5f8">{{ stats.pull_requests }}</text>
-  <text x="180" y="165" font-family="ui-monospace, monospace" font-size="10" fill="#888899" letter-spacing="1">PULL REQUESTS</text>
+  <text x="{{ sx.x }}" y="{{ stat_y }}" font-family="{{ mono }}" font-size="22" font-weight="700" fill="{{ fg_bright }}">{{ stats.pull_requests }}</text>
+  <text x="{{ sx.x }}" y="{{ stat_label_y }}" font-family="{{ mono }}" font-size="9" fill="{{ fg_dim }}" letter-spacing="1">PRs</text>
+  {% set sx.x = sx.x + 100 %}
   {% endif %}
-  {% if "streak" in stats_show %}
-  <text x="360" y="145" font-family="ui-monospace, monospace" font-size="24" font-weight="700" fill="#f5f5f8">{{ stats.streak_days }}d</text>
-  <text x="360" y="165" font-family="ui-monospace, monospace" font-size="10" fill="#888899" letter-spacing="1">STREAK</text>
+  {% if "issues" in stats_show %}
+  <text x="{{ sx.x }}" y="{{ stat_y }}" font-family="{{ mono }}" font-size="22" font-weight="700" fill="{{ fg_bright }}">{{ stats.issues }}</text>
+  <text x="{{ sx.x }}" y="{{ stat_label_y }}" font-family="{{ mono }}" font-size="9" fill="{{ fg_dim }}" letter-spacing="1">ISSUES</text>
+  {% set sx.x = sx.x + 100 %}
   {% endif %}
+  {% if "stars_earned" in stats_show %}
+  <text x="{{ sx.x }}" y="{{ stat_y }}" font-family="{{ mono }}" font-size="22" font-weight="700" fill="{{ fg_bright }}">{{ stats.stars_earned }}</text>
+  <text x="{{ sx.x }}" y="{{ stat_label_y }}" font-family="{{ mono }}" font-size="9" fill="{{ fg_dim }}" letter-spacing="1">STARS</text>
+  {% set sx.x = sx.x + 100 %}
+  {% endif %}
+
+  <!-- CTA -->
+  <text x="620" y="{{ stat_label_y }}" font-family="{{ mono }}" font-size="11" fill="{{ accent }}">→ Full Profile</text>
 </svg>

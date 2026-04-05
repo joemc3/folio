@@ -56,8 +56,6 @@ console = Console()
 
 _COMPONENT_TEMPLATES = [
     ("hero.svg.j2", "dist/hero.svg"),
-    ("stats_card.svg.j2", "dist/stats_card.svg"),
-    ("language_chart.svg.j2", "dist/language_chart.svg"),
 ]
 
 

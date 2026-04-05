@@ -4,41 +4,6 @@
   <img src="dist/hero.svg" alt="{{ profile.name }}" width="800">
 </a>
 
-<img src="dist/stats_card.svg" alt="" width="800">
-
-<a href="https://{{ user.login }}.github.io">
-  <img src="dist/language_chart.svg" alt="Languages" width="800">
-</a>
-
 <br>
 
 **[→ Full Profile](https://{{ user.login }}.github.io)**
-
-{% for repo in repos %}
-### {% if repo.is_private %}{{ repo.name }}{% else %}[{{ repo.name }}]({{ repo.html_url }}){% endif %}
-
-{% if repo.is_private and repo.private_reason %}
-*{{ repo.private_reason }}*
-{% endif %}
-
-{% if repo.description %}
-{{ repo.description }}
-{% endif %}
-
-{% set summary = summaries.get(repo.full_name) %}
-{% if summary %}
-{{ summary }}
-{% endif %}
-
-{% if repo.is_fork %}
-{% set fork_diff = fork_diffs.get(repo.full_name) %}
-{% if fork_diff %}
-{{ fork_diff }}
-{% endif %}
-{% if repo.fork_parent %}
-*Forked from [{{ repo.fork_parent }}](https://github.com/{{ repo.fork_parent }})*
-{% endif %}
-{% endif %}
-
----
-{% endfor %}

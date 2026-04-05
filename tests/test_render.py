@@ -240,25 +240,20 @@ class TestRenderReadme:
 
         assert "Test Developer" in result
 
-    def test_public_repo_has_markdown_link(self):
+    def test_readme_is_minimal_teaser(self):
+        """README should be a hero card + link, not a full repo listing."""
         from folio.render import render_readme
 
         data = _make_enriched_data()
         config = _make_config()
         result = render_readme(data, config)
 
-        assert "[public-project](https://github.com/testdev/public-project)" in result
-
-    def test_private_repo_no_link(self):
-        from folio.render import render_readme
-
-        data = _make_enriched_data()
-        config = _make_config()
-        result = render_readme(data, config)
-
-        # Private repo should appear as plain text, not a markdown link
-        assert "[secret-tool]" not in result
-        assert "secret-tool" in result
+        # Should have hero SVG link and CTA
+        assert "hero.svg" in result
+        assert "Full Profile" in result
+        # Should NOT list individual repos
+        assert "public-project" not in result
+        assert "secret-tool" not in result
 
 
 # ---------------------------------------------------------------------------
