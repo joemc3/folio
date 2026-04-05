@@ -1,0 +1,48 @@
+# Folio — .profile.yml
+# Copy this to .profile.yml and customize. Never commit .profile.yml directly.
+
+profile:
+  name: "Your Name"
+  tagline: "What you do in one line"
+  location: ""
+  resume_url: ""
+  avatar: ""              # Leave blank to use your GitHub avatar
+  social:
+    twitter: ""
+    linkedin: ""
+    website: ""
+
+ai:
+  provider: anthropic     # anthropic | openai | ollama | openrouter
+  model: claude-sonnet-4-20250514
+  base_url: ""            # Required for ollama (e.g. http://localhost:11434)
+  # API key comes from environment variable — never store it here.
+  # ANTHROPIC_API_KEY | OPENAI_API_KEY | OPENROUTER_API_KEY | ollama needs no key
+
+repos:
+  # List repos to include on your profile. If omitted, defaults to all public repos.
+  include:
+    - name: my-cool-project
+    - name: private-work
+      private_reason: "Under NDA"   # Shown instead of a link
+    # - name: my-fork             # Forks get automatic "what I changed" summaries
+  exclude:
+    - old-project-to-hide
+  forks:
+    show: true
+    summarize_diff: true
+
+stats:
+  range: 3mo              # 1mo | 3mo | 1yr | alltime
+  show:
+    - commits
+    - pull_requests
+    - issues
+    - streak
+    - top_languages
+    - stars_earned
+  language_count: 6
+
+theme:
+  name: dark              # dark | light | auto
+  accent: auto            # auto = derived from your top language | or hex like "#e8b84a"
