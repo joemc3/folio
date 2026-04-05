@@ -9,9 +9,17 @@ __pycache__/
 *.pyc
 *.egg-info/
 .venv/
+.pytest_cache/
 
 # Folio cache
 .folio/
+
+# IDE
+.vscode/
+.idea/
+
+# Claude Code local settings
+.claude/settings.local.json
 
 # Brainstorm artifacts
 .superpowers/
