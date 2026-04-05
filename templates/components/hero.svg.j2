@@ -1,11 +1,18 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="800" height="200" viewBox="0 0 800 200">
-  <rect width="800" height="200" rx="12" fill="#0d1117"/>
-  <text x="400" y="80" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="32" font-weight="bold" fill="#e6edf3">
-    {{ user.name or user.login }}
-  </text>
-  {% if profile.tagline %}
-  <text x="400" y="120" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="16" fill="#8b949e">
-    {{ profile.tagline }}
-  </text>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 200" fill="none">
+  <rect width="800" height="200" fill="#151519"/>
+  <text x="40" y="60" font-family="ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace" font-size="28" font-weight="700" fill="#f5f5f8">{{ profile.name }}</text>
+  <text x="40" y="90" font-family="ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace" font-size="14" fill="#e0e0e6">{{ profile.tagline }}</text>
+  <line x1="40" y1="110" x2="760" y2="110" stroke="{{ accent }}" stroke-width="1" opacity="0.4"/>
+  {% if "commits" in stats_show %}
+  <text x="40" y="145" font-family="ui-monospace, monospace" font-size="24" font-weight="700" fill="#f5f5f8">{{ stats.commits }}</text>
+  <text x="40" y="165" font-family="ui-monospace, monospace" font-size="10" fill="#888899" letter-spacing="1">COMMITS</text>
+  {% endif %}
+  {% if "pull_requests" in stats_show %}
+  <text x="180" y="145" font-family="ui-monospace, monospace" font-size="24" font-weight="700" fill="#f5f5f8">{{ stats.pull_requests }}</text>
+  <text x="180" y="165" font-family="ui-monospace, monospace" font-size="10" fill="#888899" letter-spacing="1">PULL REQUESTS</text>
+  {% endif %}
+  {% if "streak" in stats_show %}
+  <text x="360" y="145" font-family="ui-monospace, monospace" font-size="24" font-weight="700" fill="#f5f5f8">{{ stats.streak_days }}d</text>
+  <text x="360" y="165" font-family="ui-monospace, monospace" font-size="10" fill="#888899" letter-spacing="1">STREAK</text>
   {% endif %}
 </svg>
