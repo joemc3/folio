@@ -54,8 +54,8 @@ console = Console()
 # ---------------------------------------------------------------------------
 
 _COMPONENT_TEMPLATES = [
-    ("components/hero.svg.j2", "dist/hero.svg"),
-    ("components/stats_card.svg.j2", "dist/stats_card.svg"),
+    ("hero.svg.j2", "dist/hero.svg"),
+    ("stats_card.svg.j2", "dist/stats_card.svg"),
 ]
 
 
@@ -90,7 +90,7 @@ def _render_svg_components(enriched: object, config: object, cwd: Path) -> None:
     """Render SVG component templates that have content."""
     templates_dir = Path(__file__).parent.parent / "templates"
     for template_name, output_rel in _COMPONENT_TEMPLATES:
-        template_path = templates_dir / template_name
+        template_path = templates_dir / "components" / template_name
         if not template_path.exists():
             continue
         content = template_path.read_text(encoding="utf-8").strip()
