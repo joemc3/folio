@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="160" viewBox="0 0 400 160">
+  <rect width="400" height="160" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="20" y="30" font-family="-apple-system, sans-serif" font-size="14" font-weight="600" fill="#e6edf3">
+    GitHub Stats
+  </text>
+  {% if stats %}
+  <text x="20" y="60" font-family="-apple-system, sans-serif" font-size="12" fill="#8b949e">
+    Commits: {{ stats.commits }}
+  </text>
+  <text x="20" y="82" font-family="-apple-system, sans-serif" font-size="12" fill="#8b949e">
+    Pull Requests: {{ stats.pull_requests }}
+  </text>
+  <text x="20" y="104" font-family="-apple-system, sans-serif" font-size="12" fill="#8b949e">
+    Issues: {{ stats.issues }}
+  </text>
+  <text x="20" y="126" font-family="-apple-system, sans-serif" font-size="12" fill="#8b949e">
+    Stars Earned: {{ stats.stars_earned }}
+  </text>
+  {% endif %}
+</svg>

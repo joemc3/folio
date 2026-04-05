@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="800" height="200" viewBox="0 0 800 200">
+  <rect width="800" height="200" rx="12" fill="#0d1117"/>
+  <text x="400" y="80" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="32" font-weight="bold" fill="#e6edf3">
+    {{ user.name or user.login }}
+  </text>
+  {% if profile.tagline %}
+  <text x="400" y="120" text-anchor="middle" font-family="-apple-system, sans-serif" font-size="16" fill="#8b949e">
+    {{ profile.tagline }}
+  </text>
+  {% endif %}
+</svg>

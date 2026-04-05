@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="400" height="160" viewBox="0 0 400 160">
+  <rect width="400" height="160" rx="8" fill="#161b22" stroke="#30363d" stroke-width="1"/>
+  <text x="20" y="30" font-family="-apple-system, sans-serif" font-size="14" font-weight="600" fill="#e6edf3">
+    Top Languages
+  </text>
+  {% if stats and stats.languages %}
+  {% set langs = stats.languages.items() | list | sort(attribute=1, reverse=True) %}
+  {% for lang, pct in langs[:5] %}
+  <text x="20" y="{{ 55 + loop.index0 * 20 }}" font-family="-apple-system, sans-serif" font-size="12" fill="{{ lang | lang_color }}">
+    {{ lang }}: {{ (pct * 100) | round(1) }}%
+  </text>
+  {% endfor %}
+  {% endif %}
+</svg>
