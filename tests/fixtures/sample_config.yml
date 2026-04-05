@@ -1,0 +1,42 @@
+profile:
+  name: "Test User"
+  tagline: "Building things"
+  location: "Austin, TX"
+  resume_url: "https://example.com/resume"
+  avatar: ""
+  social:
+    twitter: "testuser"
+    linkedin: "testuser"
+    website: "https://example.com"
+
+ai:
+  provider: anthropic
+  model: claude-sonnet-4-20250514
+  base_url: ""
+
+repos:
+  include:
+    - name: public-project
+    - name: private-project
+      private_reason: "Under NDA"
+    - name: my-fork
+  exclude:
+    - old-project
+  forks:
+    show: true
+    summarize_diff: true
+
+stats:
+  range: 3mo
+  show:
+    - commits
+    - pull_requests
+    - issues
+    - streak
+    - top_languages
+    - stars_earned
+  language_count: 6
+
+theme:
+  name: dark
+  accent: auto

@@ -1,0 +1,17 @@
+# Personal config — never commit
+.profile.yml
+
+# Generated output
+dist/
+
+# Python
+__pycache__/
+*.pyc
+*.egg-info/
+.venv/
+
+# Folio cache
+.folio/
+
+# Brainstorm artifacts
+.superpowers/
