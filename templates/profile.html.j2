@@ -1,76 +1,184 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en"{% if theme == "light" %} class="theme-light"{% elif theme == "dark" %} class="theme-dark"{% endif %}>
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>{{ user.name or user.login }} — Folio</title>
+  <title>{{ (profile.name if profile and profile.name else (user.name or user.login)) }} — Folio</title>
   <link rel="stylesheet" href="style.css" />
 </head>
-<body data-theme="{{ theme }}">
-  <header class="profile-header">
-    {% if avatar %}
-    <img class="avatar" src="{{ avatar }}" alt="{{ user.name or user.login }}" />
-    {% endif %}
-    <h1>{{ user.name or user.login }}</h1>
-    {% if bio %}
-    <p class="bio">{{ bio }}</p>
-    {% endif %}
-    {% if profile.tagline %}
-    <p class="tagline">{{ profile.tagline }}</p>
-    {% endif %}
-  </header>
+<body>
+<div class="page">
 
-  <main>
-    <section class="projects">
-      <h2>Projects</h2>
-      <ul class="project-list">
-        {% for repo in repos %}
-        <li class="project-item{% if repo.is_fork %} project-fork{% endif %}{% if repo.is_private %} project-private{% endif %}">
-          {% if repo.is_private %}
-          <span class="project-name">{{ repo.name }}</span>
-          {% if repo.private_reason %}
-          <span class="private-reason">{{ repo.private_reason }}</span>
-          {% endif %}
-          {% else %}
-          <a class="project-name" href="{{ repo.html_url }}">{{ repo.name }}</a>
-          {% endif %}
+  <!-- HERO -->
+  <section class="hero">
+    <div class="hero-text">
+      <h1>{{ profile.name if profile and profile.name else (user.name or user.login) }}</h1>
+      {% if profile and profile.tagline %}
+      <div class="hero-tagline">{{ profile.tagline }}<span class="cursor"></span></div>
+      {% endif %}
+      <div class="hero-links">
+        {% if profile and profile.resume_url %}
+        <a href="{{ profile.resume_url }}">resume</a>
+        {% endif %}
+        {% if profile and profile.social %}
+        {% if profile.social.twitter %}
+        <a href="https://twitter.com/{{ profile.social.twitter }}">twitter</a>
+        {% endif %}
+        {% if profile.social.linkedin %}
+        <a href="https://linkedin.com/in/{{ profile.social.linkedin }}">linkedin</a>
+        {% endif %}
+        {% if profile.social.website %}
+        <a href="{{ profile.social.website }}">website</a>
+        {% endif %}
+        {% endif %}
+        {% if profile and profile.location %}
+        <span>{{ profile.location }}</span>
+        {% endif %}
+      </div>
+    </div>
+    <div>
+      {% if avatar %}
+      <img class="hero-avatar" src="{{ avatar }}" alt="{{ user.name or user.login }}" />
+      {% else %}
+      <div class="hero-avatar-placeholder">{{ (user.name or user.login)[:2] | upper }}</div>
+      {% endif %}
+    </div>
+  </section>
 
-          {% if repo.description %}
-          <p class="project-description">{{ repo.description }}</p>
-          {% endif %}
+  <!-- ABOUT -->
+  {% if bio %}
+  <section class="about">
+    <div class="section-header"><span class="slashes">//</span> About</div>
+    <div class="about-body">
+      <p>{{ bio }}</p>
+    </div>
+  </section>
+  {% endif %}
 
-          {% set summary = summaries.get(repo.full_name) %}
-          {% if summary %}
-          <p class="project-summary">{{ summary }}</p>
-          {% endif %}
-
-          {% if repo.is_fork %}
-          {% set fork_diff = fork_diffs.get(repo.full_name) %}
-          {% if fork_diff %}
-          <p class="fork-diff">{{ fork_diff }}</p>
-          {% endif %}
-          {% if repo.fork_parent %}
-          <span class="fork-parent">Forked from {{ repo.fork_parent }}</span>
-          {% endif %}
-          {% endif %}
-
-          {% if repo.language %}
-          <span class="language-badge" style="color: {{ repo.language | lang_color }}">
-            {{ repo.language }}
+  <!-- PROJECTS -->
+  {% if repos %}
+  <section class="projects-section">
+    <div class="section-header"><span class="slashes">//</span> Projects</div>
+    <div class="project-list">
+      {% for repo in repos %}
+      <div class="project">
+        <!-- Left: name + tags -->
+        <div class="project-left">
+          <span class="project-name">
+            {% if repo.is_private %}
+            {{ repo.name }}
+            {% else %}
+            <a href="{{ repo.html_url }}">{{ repo.name }}</a>
+            {% endif %}
           </span>
-          {% endif %}
+          <div class="project-tags">
+            {% if repo.is_private %}
+            <span class="project-tag private">private</span>
+            {% endif %}
+            {% if repo.is_fork %}
+            <span class="project-tag fork">fork</span>
+            {% endif %}
+            {% if repo.language %}
+            <span class="project-tag">{{ repo.language }}</span>
+            {% endif %}
+          </div>
+        </div>
 
-          {% if repo.stars %}
-          <span class="stars">&#9733; {{ repo.stars }}</span>
+        <!-- Middle: summary / description -->
+        <div class="project-middle">
+          {% set summary = summaries.get(repo.full_name) %}
+          {% set fork_diff = fork_diffs.get(repo.full_name) %}
+          {% if summary %}
+          <div class="project-summary">{{ summary }}</div>
+          {% elif fork_diff %}
+          <div class="project-summary">{{ fork_diff }}</div>
+          {% elif repo.description %}
+          <div class="project-summary">{{ repo.description }}</div>
           {% endif %}
-        </li>
+          {% if repo.is_fork and repo.fork_parent %}
+          <div class="project-fork-note">forked from {{ repo.fork_parent }}</div>
+          {% endif %}
+          {% if repo.is_private and repo.private_reason %}
+          <div class="project-private-note">{{ repo.private_reason }}</div>
+          {% endif %}
+        </div>
+
+        <!-- Right: stars + last updated -->
+        <div class="project-meta">
+          {% if not repo.is_private and repo.stars %}
+          <div>★ {{ repo.stars }}</div>
+          {% endif %}
+          {% if repo.last_updated %}
+          <div>{{ repo.last_updated.strftime('%b %Y') }}</div>
+          {% endif %}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+  </section>
+  {% endif %}
+
+  <!-- STATS -->
+  {% if stats and stats_show %}
+  <section class="stats-section">
+    <div class="section-header">
+      <span class="slashes">//</span>
+      {% if stats_range == "1mo" %}Last Month
+      {% elif stats_range == "3mo" %}Last 3 Months
+      {% elif stats_range == "1yr" %}Last Year
+      {% else %}All Time
+      {% endif %}
+    </div>
+
+    {% set visible_stats = [] %}
+    {% if "commits" in stats_show and stats.commits is not none %}{% set _ = visible_stats.append(("commits", stats.commits, "commits")) %}{% endif %}
+    {% if "pull_requests" in stats_show and stats.pull_requests is not none %}{% set _ = visible_stats.append(("pull_requests", stats.pull_requests, "pull requests")) %}{% endif %}
+    {% if "issues" in stats_show and stats.issues is not none %}{% set _ = visible_stats.append(("issues", stats.issues, "issues closed")) %}{% endif %}
+    {% if "streak_days" in stats_show and stats.streak_days is not none %}{% set _ = visible_stats.append(("streak_days", stats.streak_days ~ "d", "streak")) %}{% endif %}
+    {% if "stars_earned" in stats_show and stats.stars_earned is not none %}{% set _ = visible_stats.append(("stars_earned", stats.stars_earned, "stars earned")) %}{% endif %}
+
+    {% if visible_stats %}
+    <div class="stats-row">
+      {% for key, value, label in visible_stats %}
+      <div class="stat">
+        <div class="stat-value">{{ value }}</div>
+        <div class="stat-label">{{ label }}</div>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if stats.languages %}
+    {% set lang_items = stats.languages.items() | list %}
+    {% set total = namespace(v=0) %}
+    {% for lang, pct in lang_items %}{% set total.v = total.v + pct %}{% endfor %}
+    <div class="lang-bar">
+      <div class="lang-track">
+        {% for lang, pct in lang_items %}
+        {% set width = ((pct / total.v) * 100) | round(1) %}
+        <div class="lang-segment" style="width:{{ width }}%;background:{{ lang | lang_color }};"></div>
         {% endfor %}
-      </ul>
-    </section>
-  </main>
+      </div>
+      <div class="lang-legend">
+        {% for lang, pct in lang_items %}
+        {% set width = ((pct / total.v) * 100) | round(0) | int %}
+        <span class="lang-legend-item">
+          <span class="lang-dot" style="background:{{ lang | lang_color }};"></span>
+          {{ lang }} {{ width }}%
+        </span>
+        {% endfor %}
+      </div>
+    </div>
+    {% endif %}
+  </section>
+  {% endif %}
 
-  <footer>
-    <p>Generated by <a href="https://github.com/folio">Folio</a> on {{ generated_at }}</p>
-  </footer>
+  <!-- FOOTER -->
+  <div class="footer">
+    <span>Built with <a href="https://github.com/folio-dev/folio">Folio</a></span>
+    <span>Last generated {{ generated_at }}</span>
+  </div>
+
+</div>
 </body>
 </html>
