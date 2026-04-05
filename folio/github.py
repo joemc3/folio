@@ -220,7 +220,7 @@ def _build_repo_data(
 # Stats helper
 # ---------------------------------------------------------------------------
 
-def _fetch_stats(gh: Any, login: str, since: datetime | None, repos: list[RepoData]) -> StatsData:
+def _fetch_stats(gh: Any, login: str, since: datetime | None, repos: list[RepoData], language_count: int = 6) -> StatsData:
     """Aggregate stats from the GitHub search API and repo data."""
     since_qualifier = ""
     if since is not None:
@@ -265,7 +265,9 @@ def _fetch_stats(gh: Any, login: str, since: datetime | None, repos: list[RepoDa
         if repo.language:
             lang_counts[repo.language] = lang_counts.get(repo.language, 0) + 1
     total = sum(lang_counts.values()) or 1
-    languages = {lang: count / total for lang, count in lang_counts.items()}
+    sorted_langs = sorted(lang_counts.items(), key=lambda x: x[1], reverse=True)
+    top_langs = sorted_langs[:language_count]
+    languages = {lang: round(count / total * 100, 1) for lang, count in top_langs}
 
     return StatsData(
         commits=commits,
@@ -350,6 +352,6 @@ def fetch_github_data(config: Any) -> GitHubData:
         rd = _build_repo_data(repo, private_reason=private_reason)
         repo_data_list.append(rd)
 
-    stats = _fetch_stats(gh, profile.login, since, repo_data_list)
+    stats = _fetch_stats(gh, profile.login, since, repo_data_list, config.stats.language_count)
 
     return GitHubData(user=profile, repos=repo_data_list, stats=stats)
