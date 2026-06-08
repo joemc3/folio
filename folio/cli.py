@@ -363,7 +363,7 @@ def init(
         "anthropic": "claude-sonnet-4-6",
         "openai": "gpt-4o",
         "ollama": "llama3",
-        "openrouter": "anthropic/claude-sonnet-4-6",
+        "openrouter": "anthropic/claude-sonnet-latest",
     }
     model = typer.prompt("AI model", default=model_defaults.get(provider, ""))
 
