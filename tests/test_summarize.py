@@ -316,11 +316,11 @@ class TestSummarizeRepo:
         mock_resp = _make_litellm_response("Summary text.")
 
         with patch("litellm.completion", return_value=mock_resp) as mock_litellm:
-            summarize_repo(repo, provider="anthropic", model="claude-3-haiku-20240307")
+            summarize_repo(repo, provider="anthropic", model="claude-haiku-4-5")
 
         call_kwargs = mock_litellm.call_args
         model_arg = call_kwargs[1].get("model") or call_kwargs[0][0]
-        assert model_arg == "claude-3-haiku-20240307"
+        assert model_arg == "claude-haiku-4-5"
 
     def test_summarize_repo_strips_whitespace(self):
         repo = _make_repo()

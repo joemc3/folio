@@ -360,10 +360,10 @@ def init(
         console.print(f"[red]Invalid provider. Choose from: {', '.join(sorted(VALID_PROVIDERS))}[/red]")
 
     model_defaults = {
-        "anthropic": "claude-sonnet-4-20250514",
+        "anthropic": "claude-sonnet-4-6",
         "openai": "gpt-4o",
         "ollama": "llama3",
-        "openrouter": "anthropic/claude-sonnet-4-20250514",
+        "openrouter": "anthropic/claude-sonnet-4-6",
     }
     model = typer.prompt("AI model", default=model_defaults.get(provider, ""))
 

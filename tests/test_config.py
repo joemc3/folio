@@ -190,7 +190,7 @@ class TestLoadConfig:
         from folio.config import load_config
         config = load_config(SAMPLE_CONFIG)
         assert config.ai.provider == "anthropic"
-        assert config.ai.model == "claude-sonnet-4-20250514"
+        assert config.ai.model == "claude-sonnet-4-6"
 
     def test_load_config_repos_section(self):
         from folio.config import load_config

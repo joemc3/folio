@@ -14,7 +14,7 @@ profile:
 
 ai:
   provider: anthropic     # anthropic | openai | ollama | openrouter
-  model: claude-sonnet-4-20250514
+  model: claude-sonnet-4-6
   base_url: ""            # Required for ollama (e.g. http://localhost:11434)
   # API key comes from environment variable — never store it here.
   # ANTHROPIC_API_KEY | OPENAI_API_KEY | OPENROUTER_API_KEY | ollama needs no key

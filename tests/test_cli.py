@@ -45,7 +45,7 @@ def _make_mock_config() -> MagicMock:
     cfg.repos.exclude = []
     cfg.repos.forks.show = False
     cfg.ai.provider = "anthropic"
-    cfg.ai.model = "claude-sonnet-4-20250514"
+    cfg.ai.model = "claude-sonnet-4-6"
     cfg.ai.base_url = ""
     cfg.stats.range = "3mo"
     cfg.stats.show = ["commits"]

@@ -98,7 +98,7 @@ def _make_config() -> ProfileConfig:
         },
         "ai": {
             "provider": "anthropic",
-            "model": "claude-sonnet-4-20250514",
+            "model": "claude-sonnet-4-6",
         },
         "theme": {
             "name": "dark",
@@ -301,7 +301,7 @@ class TestRenderStyle:
         # Create config with explicit accent
         raw = {
             "profile": {"name": "Test", "social": {}},
-            "ai": {"provider": "anthropic", "model": "claude-sonnet-4-20250514"},
+            "ai": {"provider": "anthropic", "model": "claude-sonnet-4-6"},
             "theme": {"name": "dark", "accent": "#ff5500"},
             "stats": {"range": "3mo", "show": []},
         }
