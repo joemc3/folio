@@ -13,6 +13,17 @@ from folio.cli import app
 runner = CliRunner()
 
 
+@pytest.fixture(autouse=True)
+def _isolate_cwd(tmp_path, monkeypatch):
+    """Run every CLI test in an isolated working directory.
+
+    `folio generate` writes README.md and dist/ to the *current* working
+    directory. Without this, running the suite from the repo root overwrites
+    the repo's own README.md (and dist/) with mocked test output on every run.
+    """
+    monkeypatch.chdir(tmp_path)
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
