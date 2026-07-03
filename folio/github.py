@@ -24,6 +24,13 @@ class UserProfile:
     bio: str | None
     followers: int
     following: int
+    email: str | None = None
+
+
+@dataclass
+class SiteLink:
+    label: str
+    url: str
 
 
 @dataclass
@@ -41,6 +48,8 @@ class RepoData:
     html_url: str
     readme_text: str = ""
     recent_commits: list[str] = field(default_factory=list)
+    homepage: str | None = None
+    link: SiteLink | None = None
 
 
 @dataclass
@@ -185,6 +194,7 @@ def _fetch_recent_commits(repo: Any, since: datetime | None) -> list[str]:
 def _build_repo_data(
     repo: Any,
     private_reason: str | None,
+    config_link: SiteLink | None = None,
 ) -> RepoData:
     """Convert a PyGitHub Repository to a RepoData instance."""
     fork_parent: str | None = None
@@ -198,6 +208,14 @@ def _build_repo_data(
 
     readme_text = _fetch_readme(repo)
     recent_commits = _fetch_recent_commits(repo, since=None)
+
+    homepage = getattr(repo, "homepage", None) or None
+    if config_link is not None:
+        link = config_link
+    elif homepage:
+        link = SiteLink(label="View site", url=homepage)
+    else:
+        link = None
 
     return RepoData(
         name=repo.name,
@@ -213,6 +231,8 @@ def _build_repo_data(
         html_url=repo.html_url,
         readme_text=readme_text,
         recent_commits=recent_commits,
+        homepage=homepage,
+        link=link,
     )
 
 
@@ -305,6 +325,7 @@ def fetch_github_data(config: Any) -> GitHubData:
         bio=user.bio,
         followers=user.followers,
         following=user.following,
+        email=getattr(user, "email", None) or None,
     )
 
     since = _compute_since(getattr(config.stats, "range", "3mo"))
@@ -313,19 +334,30 @@ def fetch_github_data(config: Any) -> GitHubData:
     include_list = config.repos.include  # list[dict] or None
     exclude_set: set[str] = set(config.repos.exclude or [])
 
-    include_map: dict[str, str | None] | None = None
+    def _entry_link(entry) -> SiteLink | None:
+        # dict entry
+        if isinstance(entry, dict):
+            raw = entry.get("link")
+            if isinstance(raw, dict) and raw.get("label") and raw.get("url"):
+                return SiteLink(label=raw["label"], url=raw["url"])
+            return None
+        # pydantic RepoEntry (or attr-style)
+        raw = getattr(entry, "link", None)
+        if raw is not None and getattr(raw, "label", None) and getattr(raw, "url", None):
+            return SiteLink(label=raw.label, url=raw.url)
+        return None
+
+    include_map: dict[str, tuple[str | None, SiteLink | None]] | None = None
     if include_list is not None:
         include_map = {}
         for entry in include_list:
-            # entry may be a dict or a MagicMock-like object with .name / .get()
             if isinstance(entry, dict):
                 repo_name = entry["name"]
                 reason = entry.get("private_reason")
             else:
-                # Attribute-style access (e.g. pydantic models)
                 repo_name = entry.name
                 reason = getattr(entry, "private_reason", None)
-            include_map[repo_name] = reason
+            include_map[repo_name] = (reason, _entry_link(entry))
 
     # Fetch repos
     all_repos = user.get_repos()
@@ -345,11 +377,12 @@ def fetch_github_data(config: Any) -> GitHubData:
         if repo.name in exclude_set:
             continue
 
-        private_reason: str | None = None
+        private_reason = None
+        config_link: SiteLink | None = None
         if include_map is not None:
-            private_reason = include_map.get(repo.name)
+            private_reason, config_link = include_map.get(repo.name, (None, None))
 
-        rd = _build_repo_data(repo, private_reason=private_reason)
+        rd = _build_repo_data(repo, private_reason=private_reason, config_link=config_link)
         repo_data_list.append(rd)
 
     stats = _fetch_stats(gh, profile.login, since, repo_data_list, config.stats.language_count)

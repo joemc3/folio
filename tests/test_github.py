@@ -196,6 +196,7 @@ def _make_mock_repo(
     private=False,
     parent=None,
     readme_content="README content here",
+    homepage=None,
 ):
     """Build a mock PyGitHub Repository object."""
     repo = MagicMock()
@@ -209,6 +210,7 @@ def _make_mock_repo(
     repo.private = private
     repo.html_url = f"https://github.com/jdoe/{name}"
     repo.parent = parent
+    repo.homepage = homepage
 
     # get_readme mock
     mock_readme = MagicMock()
@@ -239,6 +241,7 @@ def _make_mock_github(repos, login="jdoe", name="Jane Doe"):
     mock_user.bio = "Engineer"
     mock_user.followers = 42
     mock_user.following = 10
+    mock_user.email = None
 
     # get_repos returns all repos
     mock_user.get_repos.return_value = repos
@@ -422,3 +425,48 @@ class TestFetchGithubData:
         assert isinstance(result.stats.commits, int)
         assert isinstance(result.stats.pull_requests, int)
         assert isinstance(result.stats.issues, int)
+
+
+# ---------------------------------------------------------------------------
+# Second link resolution tests
+# ---------------------------------------------------------------------------
+
+class TestSecondLink:
+    def test_link_from_config_wins_with_custom_label(self):
+        from folio.github import fetch_github_data
+        repo = _make_mock_repo(name="folio", homepage="https://ignored.example")
+        config = _make_config(include=[
+            {"name": "folio", "link": {"label": "View site", "url": "https://joe.dev/folio"}}
+        ])
+        # include carries pydantic-style entries in real use; dict is accepted by fetch too
+        mock_gh = _make_mock_github([repo])
+        with patch("folio.github.get_github_token", return_value="t"), \
+             patch("folio.github.Github", return_value=mock_gh):
+            result = fetch_github_data(config)
+        link = result.repos[0].link
+        assert link is not None
+        assert link.label == "View site"
+        assert link.url == "https://joe.dev/folio"
+
+    def test_link_falls_back_to_homepage_as_view_site(self):
+        from folio.github import fetch_github_data
+        repo = _make_mock_repo(name="folio", homepage="https://joe.dev/folio")
+        config = _make_config(include=[{"name": "folio"}])
+        mock_gh = _make_mock_github([repo])
+        with patch("folio.github.get_github_token", return_value="t"), \
+             patch("folio.github.Github", return_value=mock_gh):
+            result = fetch_github_data(config)
+        link = result.repos[0].link
+        assert link.label == "View site"
+        assert link.url == "https://joe.dev/folio"
+
+    def test_no_link_when_neither(self):
+        from folio.github import fetch_github_data
+        repo = _make_mock_repo(name="folio", homepage=None)
+        config = _make_config(include=[{"name": "folio"}])
+        mock_gh = _make_mock_github([repo])
+        with patch("folio.github.get_github_token", return_value="t"), \
+             patch("folio.github.Github", return_value=mock_gh):
+            result = fetch_github_data(config)
+        assert result.repos[0].link is None
+        assert result.repos[0].homepage is None
