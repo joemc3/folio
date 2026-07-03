@@ -28,13 +28,13 @@ repos:
 
 stats:
   range: 3mo
+  activity_range: 3mo
   show:
     - commits
     - pull_requests
     - issues
     - streak
     - top_languages
-    - stars_earned
   language_count: 6
 
 theme:

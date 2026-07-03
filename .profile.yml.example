@@ -6,6 +6,8 @@ profile:
   tagline: "What you do in one line"
   location: ""
   resume_url: ""
+  email: ""                 # For the Email button; blank = use your public GitHub email, or hide it
+  available_for_work: false # true shows an "● Available for work" badge
   avatar: ""              # Leave blank to use your GitHub avatar
   social:
     twitter: ""
@@ -23,8 +25,15 @@ repos:
   # List repos to include on your profile. If omitted, defaults to all public repos.
   include:
     - name: my-cool-project
+      # Optional second link shown next to the repo link:
+      # link:
+      #   label: View site      # button text (e.g. Live demo, Landing page, App Store)
+      #   url: https://my-cool-project.example.com
     - name: private-work
       private_reason: "Under NDA"   # Shown instead of a link
+      # link:                        # private repos can still carry a second link
+      #   label: App Store
+      #   url: https://apps.apple.com/app/idXXXXXXXX
     # - name: my-fork             # Forks get automatic "what I changed" summaries
   exclude:
     - old-project-to-hide
@@ -33,14 +42,14 @@ repos:
     summarize_diff: true
 
 stats:
-  range: 3mo              # 1mo | 3mo | 1yr | alltime
+  range: 3mo              # 1mo | 3mo | 1yr | alltime  (stat totals window)
+  activity_range: 3mo     # 3mo | 6mo | 1yr            (contribution heatmap window)
   show:
     - commits
     - pull_requests
     - issues
     - streak
     - top_languages
-    - stars_earned
   language_count: 6
 
 theme:
