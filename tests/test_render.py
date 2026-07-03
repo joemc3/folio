@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 import pytest
@@ -358,3 +359,52 @@ class TestEditorialProfile:
         }
         cfg = ProfileConfig.model_validate(raw)
         assert "Available for work" in render_profile(_make_enriched_data(), cfg)
+
+    def test_activity_header_reads_months_not_weeks(self):
+        """Activity section header should read 'last N months', derived from
+        stats.activity_range (3mo -> 3), not a count of contribution_weeks."""
+        from folio.render import render_profile
+
+        data = _make_enriched_data()
+        config = _make_config()  # activity_range defaults to "3mo"
+        result = render_profile(data, config)
+
+        match = re.search(r'<span class="label">(Activity.*?)</span>', result)
+        assert match is not None
+        assert match.group(1) == "Activity — last 3 months"
+
+    def test_render_profile_does_not_raise_on_empty_name_and_login(self):
+        """If both the resolved display name and the GitHub login are empty
+        strings, the masthead h1 and avatar monogram must not raise
+        IndexError — they should fall back to '?'."""
+        from folio.render import render_profile
+
+        empty_user = UserProfile(
+            login="",
+            name="",
+            avatar_url="",
+            bio=None,
+            followers=0,
+            following=0,
+        )
+        data = EnrichedData(
+            user=empty_user,
+            repos=[],
+            stats=None,
+            summaries={},
+            fork_diffs={},
+        )
+        # profile.name is left unset (defaults to "") so full_name resolves
+        # to (user.name or user.login), which is also "".
+        raw = {
+            "profile": {"social": {}},
+            "ai": {"provider": "anthropic", "model": "claude-sonnet-4-6"},
+            "theme": {"name": "dark", "accent": None},
+            "stats": {"range": "3mo", "show": []},
+        }
+        config = ProfileConfig.model_validate(raw)
+
+        result = render_profile(data, config)
+
+        assert isinstance(result, str)
+        assert "?" in result

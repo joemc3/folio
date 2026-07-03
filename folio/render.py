@@ -70,6 +70,9 @@ def _build_context(data: Any, config: Any) -> dict[str, Any]:
     stats_range = getattr(stats_section, "range", "3mo") if stats_section else "3mo"
     stats_show = getattr(stats_section, "show", []) if stats_section else []
 
+    activity_range = getattr(stats_section, "activity_range", "3mo") if stats_section else "3mo"
+    activity_months = {"3mo": 3, "6mo": 6, "1yr": 12}.get(activity_range, 3)
+
     return {
         "user": data.user,
         "profile": profile_section,
@@ -84,6 +87,7 @@ def _build_context(data: Any, config: Any) -> dict[str, Any]:
         "bio": bio,
         "stats_range": stats_range,
         "stats_show": stats_show,
+        "activity_months": activity_months,
         "generated_at": datetime.now(tz=timezone.utc).strftime("%Y-%m-%d"),
         "lang_color": get_language_color,
     }

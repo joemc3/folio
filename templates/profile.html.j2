@@ -8,7 +8,8 @@
 </head>
 <body>
 {% set full_name = (profile.name if profile and profile.name else (user.name or user.login)) %}
-{% set first_name = full_name.split()[0] if full_name else full_name %}
+{% set display_name = full_name if full_name else (user.login if user and user.login else "?") %}
+{% set first_name = display_name.split()[0] if display_name.split() else "?" %}
 {% set email = (profile.email if profile and profile.email else (user.email or None)) %}
 {% set resume = (profile.resume_url if profile else None) %}
 <main class="folio">
@@ -41,9 +42,9 @@
     </div>
     <div class="masthead-avatar">
       {% if avatar %}
-      <img src="{{ avatar }}" alt="{{ full_name }}" />
+      <img src="{{ avatar }}" alt="{{ display_name }}" />
       {% else %}
-      <div class="avatar-mono">{{ full_name[0] | upper }}</div>
+      <div class="avatar-mono">{{ display_name[0] | upper }}</div>
       {% endif %}
     </div>
   </section>
@@ -124,10 +125,9 @@
 
   <!-- Activity -->
   {% if stats and stats.contribution_weeks %}
-  {% set week_count = stats.contribution_weeks | length %}
   <section class="activity">
     <div class="section-head">
-      <span class="label">Activity — last {{ week_count }} week{{ '' if week_count == 1 else 's' }}</span>
+      <span class="label">Activity — last {{ activity_months }} months</span>
       <span class="section-count">{{ stats.contribution_total }} contributions</span>
     </div>
     <div class="heatmap-wrap">
