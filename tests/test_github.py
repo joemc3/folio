@@ -470,3 +470,54 @@ class TestSecondLink:
             result = fetch_github_data(config)
         assert result.repos[0].link is None
         assert result.repos[0].homepage is None
+
+
+# ---------------------------------------------------------------------------
+# Contribution helpers tests
+# ---------------------------------------------------------------------------
+
+class TestContributionHelpers:
+    def _payload(self, week_counts):
+        # week_counts: list of 7-int lists
+        return {"data": {"user": {"contributionsCollection": {"contributionCalendar": {
+            "totalContributions": sum(c for w in week_counts for c in w),
+            "weeks": [
+                {"contributionDays": [
+                    {"contributionCount": c, "date": "2026-01-01", "weekday": i}
+                    for i, c in enumerate(w)
+                ]} for w in week_counts
+            ]}}}}}
+
+    def test_level_buckets(self):
+        from folio.github import _contribution_level
+        assert _contribution_level(0, 10) == 0
+        assert _contribution_level(1, 100) == 1       # 1% -> low bucket
+        assert _contribution_level(50, 100) == 2      # 50%
+        assert _contribution_level(75, 100) == 3      # 75%
+        assert _contribution_level(100, 100) == 4     # max
+        assert _contribution_level(5, 0) == 0         # no max -> 0
+
+    def test_parse_calendar(self):
+        from folio.github import _parse_contribution_calendar
+        weeks, total = _parse_contribution_calendar(self._payload([[0, 4, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0, 0]]))
+        assert total == 6
+        assert len(weeks) == 2
+        assert len(weeks[0]) == 7
+        assert weeks[0][1].count == 4
+        assert weeks[0][1].level == 4      # 4 is the max -> level 4
+        assert weeks[0][0].level == 0
+
+    def test_streak_counts_trailing_active_days(self):
+        from folio.github import _parse_contribution_calendar, _compute_streak
+        # last recorded day (today) is 0 -> ignored; two active days before it
+        weeks, _ = _parse_contribution_calendar(self._payload([[0, 0, 0, 0, 1, 2, 0]]))
+        assert _compute_streak(weeks) == 2
+
+    def test_streak_breaks_on_zero(self):
+        from folio.github import _parse_contribution_calendar, _compute_streak
+        weeks, _ = _parse_contribution_calendar(self._payload([[3, 0, 5, 5, 5, 5, 5]]))
+        assert _compute_streak(weeks) == 5     # last is 5, counts back until the 0
+
+    def test_streak_empty(self):
+        from folio.github import _compute_streak
+        assert _compute_streak([]) == 0

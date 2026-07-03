@@ -300,6 +300,72 @@ def _fetch_stats(gh: Any, login: str, since: datetime | None, repos: list[RepoDa
 
 
 # ---------------------------------------------------------------------------
+# Contribution calendar helpers (pure, no network)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ContribDay:
+    count: int
+    level: int
+
+
+def _contribution_level(count: int, max_count: int) -> int:
+    """Map a day's contribution count to a 0–4 intensity level."""
+    if count <= 0 or max_count <= 0:
+        return 0
+    frac = count / max_count
+    if frac <= 0.25:
+        return 1
+    if frac <= 0.5:
+        return 2
+    if frac <= 0.75:
+        return 3
+    return 4
+
+
+def _parse_contribution_calendar(payload: dict) -> tuple[list[list[ContribDay]], int]:
+    """Turn a GitHub GraphQL contributionCalendar payload into weeks + total.
+
+    Raises KeyError/TypeError on a malformed payload — callers wrap in try/except.
+    """
+    cal = payload["data"]["user"]["contributionsCollection"]["contributionCalendar"]
+    total = int(cal["totalContributions"])
+    raw_weeks = cal["weeks"]
+    counts = [int(d["contributionCount"]) for w in raw_weeks for d in w["contributionDays"]]
+    max_count = max(counts) if counts else 0
+    weeks: list[list[ContribDay]] = []
+    for w in raw_weeks:
+        days = [
+            ContribDay(count=int(d["contributionCount"]),
+                       level=_contribution_level(int(d["contributionCount"]), max_count))
+            for d in w["contributionDays"]
+        ]
+        weeks.append(days)
+    return weeks, total
+
+
+def _compute_streak(weeks: list[list[ContribDay]]) -> int:
+    """Current consecutive days with contributions, counting back from today.
+
+    A trailing zero (today, not yet done) does not break the streak.
+    """
+    days = [d for w in weeks for d in w]
+    if not days:
+        return 0
+    start = len(days) - 1
+    if days[start].count == 0:
+        start -= 1
+    streak = 0
+    for i in range(start, -1, -1):
+        if days[i].count > 0:
+            streak += 1
+        else:
+            break
+    return streak
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
