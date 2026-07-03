@@ -7,178 +7,192 @@
   <link rel="stylesheet" href="style.css" />
 </head>
 <body>
-<div class="page">
+{% set full_name = (profile.name if profile and profile.name else (user.name or user.login)) %}
+{% set first_name = full_name.split()[0] if full_name else full_name %}
+{% set email = (profile.email if profile and profile.email else (user.email or None)) %}
+{% set resume = (profile.resume_url if profile else None) %}
+<main class="folio">
 
-  <!-- HERO -->
-  <section class="hero">
-    <div class="hero-text">
-      <h1>{{ profile.name if profile and profile.name else (user.name or user.login) }}</h1>
+  <!-- Eyebrow -->
+  <header class="eyebrow">
+    <span class="eyebrow-left">Portfolio — {{ generated_at[:4] }}</span>
+    {% if profile and profile.available_for_work %}
+    <span class="eyebrow-status"><span class="dot"></span>Available for work</span>
+    {% endif %}
+  </header>
+
+  <!-- Masthead -->
+  <section class="masthead">
+    <div class="masthead-lead">
+      <h1>{{ first_name }}</h1>
       {% if profile and profile.tagline %}
-      <div class="hero-tagline">{{ profile.tagline }}<span class="cursor"></span></div>
+      <p class="masthead-tagline">{{ profile.tagline }}</p>
       {% endif %}
-      <div class="hero-links">
-        {% if profile and profile.resume_url %}
-        <a href="{{ profile.resume_url }}">resume</a>
+      {% if resume or email %}
+      <div class="masthead-actions">
+        {% if resume %}
+        <a class="btn btn-solid" href="{{ resume }}">Résumé <span aria-hidden="true">↗</span></a>
         {% endif %}
-        {% if profile and profile.social %}
-        {% if profile.social.twitter %}
-        <a href="https://twitter.com/{{ profile.social.twitter }}">twitter</a>
-        {% endif %}
-        {% if profile.social.linkedin %}
-        <a href="https://linkedin.com/in/{{ profile.social.linkedin }}">linkedin</a>
-        {% endif %}
-        {% if profile.social.website %}
-        <a href="{{ profile.social.website }}">website</a>
-        {% endif %}
-        {% endif %}
-        {% if profile and profile.location %}
-        <span>{{ profile.location }}</span>
+        {% if email %}
+        <a class="btn btn-outline" href="mailto:{{ email }}">Email</a>
         {% endif %}
       </div>
+      {% endif %}
     </div>
-    <div>
+    <div class="masthead-avatar">
       {% if avatar %}
-      <img class="hero-avatar" src="{{ avatar }}" alt="{{ user.name or user.login }}" />
+      <img src="{{ avatar }}" alt="{{ full_name }}" />
       {% else %}
-      <div class="hero-avatar-placeholder">{{ (user.name or user.login)[:2] | upper }}</div>
+      <div class="avatar-mono">{{ full_name[0] | upper }}</div>
       {% endif %}
     </div>
   </section>
 
-  <!-- ABOUT -->
+  <!-- About -->
   {% if bio %}
-  <section class="about">
-    <div class="section-header"><span class="slashes">//</span> About</div>
-    <div class="about-body">
-      <p>{{ bio }}</p>
+  <section class="about">{{ bio }}</section>
+  {% endif %}
+
+  <!-- Stack -->
+  {% if "top_languages" in stats_show and stats.languages %}
+  <section class="stack">
+    <span class="label">Stack</span>
+    <div class="stack-pills">
+      {% for lang in stats.languages %}
+      <span class="pill"><span class="pill-dot" style="background:{{ lang | lang_color }};"></span>{{ lang }}</span>
+      {% endfor %}
     </div>
   </section>
   {% endif %}
 
-  <!-- PROJECTS -->
+  <!-- Selected work -->
   {% if repos %}
-  <section class="projects-section">
-    <div class="section-header"><span class="slashes">//</span> Projects</div>
-    <div class="project-list">
+  <section class="work">
+    <div class="section-head">
+      <span class="label">Selected work</span>
+      <span class="section-count">{{ repos | length }} projects</span>
+    </div>
+    <ol class="work-list">
       {% for repo in repos %}
-      <div class="project">
-        <!-- Left: name + tags -->
-        <div class="project-left">
-          <span class="project-name">
+      {% set summary = summaries.get(repo.full_name) %}
+      {% set fork_diff = fork_diffs.get(repo.full_name) %}
+      <li class="work-item">
+        <span class="work-num">{{ '%02d' % loop.index }}</span>
+        <div class="work-body">
+          <div class="work-title">
             {% if repo.is_private %}
-            {{ repo.name }}
+            <span class="work-name">{{ repo.name }}</span>
             {% else %}
-            <a href="{{ repo.html_url }}">{{ repo.name }}</a>
+            <a class="work-name" href="{{ repo.html_url }}">{{ repo.name }}</a>
             {% endif %}
-          </span>
-          <div class="project-tags">
-            {% if repo.is_private %}
-            <span class="project-tag private">private</span>
-            {% endif %}
-            {% if repo.is_fork %}
-            <span class="project-tag fork">fork</span>
-            {% endif %}
+            {% if repo.is_private %}<span class="tag tag-private">private</span>{% endif %}
+            {% if repo.is_fork %}<span class="tag tag-fork">fork</span>{% endif %}
             {% if repo.language %}
-            <span class="project-tag">{{ repo.language }}</span>
+            <span class="tag tag-lang"><span class="tag-dot" style="background:{{ repo.language | lang_color }};"></span>{{ repo.language }}</span>
             {% endif %}
           </div>
-        </div>
-
-        <!-- Middle: summary / description -->
-        <div class="project-middle">
-          {% set summary = summaries.get(repo.full_name) %}
-          {% set fork_diff = fork_diffs.get(repo.full_name) %}
           {% if summary %}
-          <div class="project-summary">{{ summary }}</div>
+          <p class="work-desc">{{ summary }}</p>
           {% elif fork_diff %}
-          <div class="project-summary">{{ fork_diff }}</div>
+          <p class="work-desc">{{ fork_diff }}</p>
           {% elif repo.description %}
-          <div class="project-summary">{{ repo.description }}</div>
+          <p class="work-desc">{{ repo.description }}</p>
           {% endif %}
           {% if repo.is_fork and repo.fork_parent %}
-          <div class="project-fork-note">forked from {{ repo.fork_parent }}</div>
+          <div class="work-note fork-note">forked from {{ repo.fork_parent }}</div>
           {% endif %}
           {% if repo.is_private and repo.private_reason %}
-          <div class="project-private-note">{{ repo.private_reason }}</div>
+          <div class="work-note private-note">◦ {{ repo.private_reason }}</div>
           {% endif %}
         </div>
-
-        <!-- Right: stars + last updated -->
-        <div class="project-meta">
-          {% if not repo.is_private and repo.stars %}
-          <div>★ {{ repo.stars }}</div>
-          {% endif %}
+        <div class="work-meta">
           {% if repo.last_updated %}
-          <div>{{ repo.last_updated.strftime('%b %Y') }}</div>
+          <div class="work-date">{{ repo.last_updated.strftime('%b %Y') }}</div>
+          {% endif %}
+          {% if not repo.is_private %}
+          <a class="work-code" href="{{ repo.html_url }}">Code <span aria-hidden="true">↗</span></a>
+          {% endif %}
+          {% if repo.link %}
+          <a class="work-link" href="{{ repo.link.url }}">{{ repo.link.label }} <span aria-hidden="true">↗</span></a>
           {% endif %}
         </div>
-      </div>
+      </li>
       {% endfor %}
+    </ol>
+  </section>
+  {% endif %}
+
+  <!-- Activity -->
+  {% if stats and stats.contribution_weeks %}
+  {% set week_count = stats.contribution_weeks | length %}
+  <section class="activity">
+    <div class="section-head">
+      <span class="label">Activity — last {{ week_count }} week{{ '' if week_count == 1 else 's' }}</span>
+      <span class="section-count">{{ stats.contribution_total }} contributions</span>
+    </div>
+    <div class="heatmap-wrap">
+      <div class="heatmap">
+        {% for week in stats.contribution_weeks %}
+        <div class="heat-week">
+          {% for day in week %}
+          <div class="heat-cell" data-level="{{ day.level }}"></div>
+          {% endfor %}
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+    <div class="heat-legend">
+      <span>Less</span>
+      <span class="heat-cell" data-level="0"></span>
+      <span class="heat-cell" data-level="1"></span>
+      <span class="heat-cell" data-level="2"></span>
+      <span class="heat-cell" data-level="3"></span>
+      <span class="heat-cell" data-level="4"></span>
+      <span>More</span>
     </div>
   </section>
   {% endif %}
 
-  <!-- STATS -->
+  <!-- Stat line -->
   {% if stats and stats_show %}
-  <section class="stats-section">
-    <div class="section-header">
-      <span class="slashes">//</span>
-      {% if stats_range == "1mo" %}Last Month
-      {% elif stats_range == "3mo" %}Last 3 Months
-      {% elif stats_range == "1yr" %}Last Year
-      {% else %}All Time
+  {% set stat_line = [] %}
+  {% if "commits" in stats_show and stats.commits is not none %}{% set _ = stat_line.append((stats.commits, "Commits")) %}{% endif %}
+  {% if "pull_requests" in stats_show and stats.pull_requests is not none %}{% set _ = stat_line.append((stats.pull_requests, "Pull requests")) %}{% endif %}
+  {% if "issues" in stats_show and stats.issues is not none %}{% set _ = stat_line.append((stats.issues, "Issues")) %}{% endif %}
+  {% if "streak" in stats_show and stats.streak_days is not none %}{% set _ = stat_line.append((stats.streak_days, "Day streak")) %}{% endif %}
+  {% if stat_line %}
+  <section class="stats">
+    {% for value, label in stat_line %}
+    <div class="stat">
+      <div class="stat-value">{{ value }}</div>
+      <div class="stat-label">{{ label }}</div>
+    </div>
+    {% endfor %}
+  </section>
+  {% endif %}
+  {% endif %}
+
+  <!-- CTA -->
+  <section class="cta">
+    <div class="cta-line">Let&rsquo;s build something.</div>
+    {% if resume or email %}
+    <div class="cta-actions">
+      {% if resume %}
+      <a class="btn btn-solid btn-sm" href="{{ resume }}">Résumé <span aria-hidden="true">↗</span></a>
+      {% endif %}
+      {% if email %}
+      <a class="btn btn-outline btn-sm" href="mailto:{{ email }}">Email</a>
       {% endif %}
     </div>
-
-    {% set visible_stats = [] %}
-    {% if "commits" in stats_show and stats.commits is not none %}{% set _ = visible_stats.append(("commits", stats.commits, "commits")) %}{% endif %}
-    {% if "pull_requests" in stats_show and stats.pull_requests is not none %}{% set _ = visible_stats.append(("pull_requests", stats.pull_requests, "pull requests")) %}{% endif %}
-    {% if "issues" in stats_show and stats.issues is not none %}{% set _ = visible_stats.append(("issues", stats.issues, "issues closed")) %}{% endif %}
-    {% if "streak_days" in stats_show and stats.streak_days is not none %}{% set _ = visible_stats.append(("streak_days", stats.streak_days ~ "d", "streak")) %}{% endif %}
-    {% if "stars_earned" in stats_show and stats.stars_earned is not none %}{% set _ = visible_stats.append(("stars_earned", stats.stars_earned, "stars earned")) %}{% endif %}
-
-    {% if visible_stats %}
-    <div class="stats-row">
-      {% for key, value, label in visible_stats %}
-      <div class="stat">
-        <div class="stat-value">{{ value }}</div>
-        <div class="stat-label">{{ label }}</div>
-      </div>
-      {% endfor %}
-    </div>
-    {% endif %}
-
-    {% if stats.languages %}
-    {% set lang_items = stats.languages.items() | list %}
-    {% set total = namespace(v=0) %}
-    {% for lang, pct in lang_items %}{% set total.v = total.v + pct %}{% endfor %}
-    <div class="lang-bar">
-      <div class="lang-track">
-        {% for lang, pct in lang_items %}
-        {% set width = ((pct / total.v) * 100) | round(1) %}
-        <div class="lang-segment" style="width:{{ width }}%;background:{{ lang | lang_color }};"></div>
-        {% endfor %}
-      </div>
-      <div class="lang-legend">
-        {% for lang, pct in lang_items %}
-        {% set width = ((pct / total.v) * 100) | round(0) | int %}
-        <span class="lang-legend-item">
-          <span class="lang-dot" style="background:{{ lang | lang_color }};"></span>
-          {{ lang }} {{ width }}%
-        </span>
-        {% endfor %}
-      </div>
-    </div>
     {% endif %}
   </section>
-  {% endif %}
 
-  <!-- FOOTER -->
-  <div class="footer">
+  <!-- Footer -->
+  <footer class="foot">
     <span>Built with <a href="https://github.com/joemc3/folio">Folio</a></span>
     <span>Last generated {{ generated_at }}</span>
-  </div>
+  </footer>
 
-</div>
+</main>
 </body>
 </html>

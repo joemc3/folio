@@ -40,11 +40,17 @@ def _build_context(data: Any, config: Any) -> dict[str, Any]:
     theme_section = getattr(config, "theme", None)
     theme = getattr(theme_section, "name", "dark") if theme_section else "dark"
 
-    # Resolve accent: explicit config value or auto from top languages
+    # Resolve accent: explicit config value or auto from top languages.
+    # (Legacy key, still consumed by the SVG/readme templates.)
     accent: str | None = getattr(theme_section, "accent", None) if theme_section else None
     if not accent or accent == "auto":
         languages = getattr(data.stats, "languages", {}) if data.stats else {}
         accent = get_accent_from_languages(languages)
+
+    # Editorial accent: only an explicit hex overrides the themed default.
+    # auto/None falls through to the terracotta baked into the token blocks.
+    raw_accent = getattr(theme_section, "accent", None) if theme_section else None
+    accent_override = raw_accent if (raw_accent and raw_accent != "auto") else None
 
     # Profile section
     profile_section = getattr(config, "profile", None)
@@ -73,6 +79,7 @@ def _build_context(data: Any, config: Any) -> dict[str, Any]:
         "fork_diffs": data.fork_diffs,
         "theme": theme,
         "accent": accent,
+        "accent_override": accent_override,
         "avatar": avatar,
         "bio": bio,
         "stats_range": stats_range,
