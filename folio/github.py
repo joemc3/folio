@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-import requests
+import httpx
 from github import Github, GithubException
 
 
@@ -296,7 +296,7 @@ def _fetch_stats(gh: Any, login: str, since: datetime | None, repos: list[RepoDa
         commits=commits,
         pull_requests=pull_requests,
         issues=issues,
-        streak_days=0,  # streak requires event timeline — deferred
+        streak_days=0,
         stars_earned=stars_earned,
         languages=languages,
     )
@@ -390,7 +390,7 @@ def _fetch_contribution_calendar(
     to_dt = datetime.now(tz=timezone.utc)
     from_dt = to_dt - timedelta(days=days)
     try:
-        resp = requests.post(
+        resp = httpx.post(
             "https://api.github.com/graphql",
             json={"query": _CONTRIB_QUERY, "variables": {
                 "login": login, "from": from_dt.isoformat(), "to": to_dt.isoformat()}},

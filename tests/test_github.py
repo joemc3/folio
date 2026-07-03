@@ -524,7 +524,7 @@ class TestContributionHelpers:
 
 
 # ---------------------------------------------------------------------------
-# Contribution fetch tests (network, mocked via requests.post)
+# Contribution fetch tests (network, mocked via httpx.post)
 # ---------------------------------------------------------------------------
 
 class TestContributionFetch:
@@ -539,14 +539,14 @@ class TestContributionFetch:
         payload = {"data": {"user": {"contributionsCollection": {"contributionCalendar": {
             "totalContributions": 5,
             "weeks": [{"contributionDays": [{"contributionCount": 5, "date": "2026-01-01", "weekday": 0}]}]}}}}}
-        with patch("folio.github.requests.post", return_value=self._resp(payload)):
+        with patch("folio.github.httpx.post", return_value=self._resp(payload)):
             weeks, total = _fetch_contribution_calendar("t", "joe", "3mo")
         assert total == 5
         assert weeks[0][0].count == 5
 
     def test_fetch_returns_empty_on_failure(self):
         from folio.github import _fetch_contribution_calendar
-        # autouse stub already makes requests.post raise
+        # autouse stub already makes httpx.post raise
         weeks, total = _fetch_contribution_calendar("t", "joe", "3mo")
         assert weeks == []
         assert total == 0
@@ -561,7 +561,7 @@ class TestContributionFetch:
         mock_gh = _make_mock_github([repo])
         with patch("folio.github.get_github_token", return_value="t"), \
              patch("folio.github.Github", return_value=mock_gh), \
-             patch("folio.github.requests.post", return_value=self._resp(payload)):
+             patch("folio.github.httpx.post", return_value=self._resp(payload)):
             result = fetch_github_data(_make_config())
         assert result.stats.contribution_total == 3
         assert len(result.stats.contribution_weeks) == 1
@@ -571,7 +571,7 @@ class TestContributionFetch:
         from folio.github import fetch_github_data
         repo = _make_mock_repo()
         mock_gh = _make_mock_github([repo])
-        # autouse stub: requests.post raises -> empty, generate must not break
+        # autouse stub: httpx.post raises -> empty, generate must not break
         with patch("folio.github.get_github_token", return_value="t"), \
              patch("folio.github.Github", return_value=mock_gh):
             result = fetch_github_data(_make_config())

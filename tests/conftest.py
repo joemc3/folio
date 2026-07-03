@@ -25,5 +25,5 @@ def tmp_config(tmp_path):
 @pytest.fixture(autouse=True)
 def _no_network_contributions():
     """Block the contribution GraphQL POST by default; tests opt in explicitly."""
-    with patch("folio.github.requests.post", side_effect=ConnectionError("blocked in tests")):
+    with patch("folio.github.httpx.post", side_effect=ConnectionError("blocked in tests")):
         yield
