@@ -1,5 +1,7 @@
 """Shared test fixtures for Folio."""
 
+from unittest.mock import patch
+
 import pytest
 from pathlib import Path
 
@@ -18,3 +20,10 @@ def tmp_config(tmp_path):
     config_path = tmp_path / ".profile.yml"
     config_path.write_text(config_text)
     return config_path
+
+
+@pytest.fixture(autouse=True)
+def _no_network_contributions():
+    """Block the contribution GraphQL POST by default; tests opt in explicitly."""
+    with patch("folio.github.requests.post", side_effect=ConnectionError("blocked in tests")):
+        yield

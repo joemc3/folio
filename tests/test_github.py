@@ -521,3 +521,59 @@ class TestContributionHelpers:
     def test_streak_empty(self):
         from folio.github import _compute_streak
         assert _compute_streak([]) == 0
+
+
+# ---------------------------------------------------------------------------
+# Contribution fetch tests (network, mocked via requests.post)
+# ---------------------------------------------------------------------------
+
+class TestContributionFetch:
+    def _resp(self, payload):
+        r = MagicMock()
+        r.raise_for_status.return_value = None
+        r.json.return_value = payload
+        return r
+
+    def test_fetch_parses_when_post_succeeds(self):
+        from folio.github import _fetch_contribution_calendar
+        payload = {"data": {"user": {"contributionsCollection": {"contributionCalendar": {
+            "totalContributions": 5,
+            "weeks": [{"contributionDays": [{"contributionCount": 5, "date": "2026-01-01", "weekday": 0}]}]}}}}}
+        with patch("folio.github.requests.post", return_value=self._resp(payload)):
+            weeks, total = _fetch_contribution_calendar("t", "joe", "3mo")
+        assert total == 5
+        assert weeks[0][0].count == 5
+
+    def test_fetch_returns_empty_on_failure(self):
+        from folio.github import _fetch_contribution_calendar
+        # autouse stub already makes requests.post raise
+        weeks, total = _fetch_contribution_calendar("t", "joe", "3mo")
+        assert weeks == []
+        assert total == 0
+
+    def test_fetch_github_data_populates_contributions(self):
+        from folio.github import fetch_github_data
+        payload = {"data": {"user": {"contributionsCollection": {"contributionCalendar": {
+            "totalContributions": 3,
+            "weeks": [{"contributionDays": [{"contributionCount": 1, "date": "2026-01-01", "weekday": 0},
+                                            {"contributionCount": 2, "date": "2026-01-02", "weekday": 1}]}]}}}}}
+        repo = _make_mock_repo()
+        mock_gh = _make_mock_github([repo])
+        with patch("folio.github.get_github_token", return_value="t"), \
+             patch("folio.github.Github", return_value=mock_gh), \
+             patch("folio.github.requests.post", return_value=self._resp(payload)):
+            result = fetch_github_data(_make_config())
+        assert result.stats.contribution_total == 3
+        assert len(result.stats.contribution_weeks) == 1
+        assert result.stats.streak_days == 2   # last day count=2 (>0), prior=1 (>0)
+
+    def test_fetch_github_data_survives_contribution_failure(self):
+        from folio.github import fetch_github_data
+        repo = _make_mock_repo()
+        mock_gh = _make_mock_github([repo])
+        # autouse stub: requests.post raises -> empty, generate must not break
+        with patch("folio.github.get_github_token", return_value="t"), \
+             patch("folio.github.Github", return_value=mock_gh):
+            result = fetch_github_data(_make_config())
+        assert result.stats.contribution_weeks == []
+        assert result.stats.streak_days == 0

@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import requests
 from github import Github, GithubException
 
 
@@ -60,6 +61,8 @@ class StatsData:
     streak_days: int = 0
     stars_earned: int = 0
     languages: dict[str, float] = field(default_factory=dict)
+    contribution_weeks: list = field(default_factory=list)   # list[list[ContribDay]]
+    contribution_total: int = 0
 
 
 @dataclass
@@ -366,6 +369,41 @@ def _compute_streak(weeks: list[list[ContribDay]]) -> int:
 
 
 # ---------------------------------------------------------------------------
+# Contribution calendar fetch (network, best-effort)
+# ---------------------------------------------------------------------------
+
+_ACTIVITY_DAYS = {"3mo": 90, "6mo": 182, "1yr": 365}
+
+_CONTRIB_QUERY = (
+    "query($login:String!,$from:DateTime!,$to:DateTime!){"
+    "user(login:$login){contributionsCollection(from:$from,to:$to){"
+    "contributionCalendar{totalContributions "
+    "weeks{contributionDays{contributionCount date weekday}}}}}}"
+)
+
+
+def _fetch_contribution_calendar(
+    token: str, login: str, activity_range: str
+) -> tuple[list[list[ContribDay]], int]:
+    """Best-effort GitHub GraphQL contribution calendar. Empty on any failure."""
+    days = _ACTIVITY_DAYS.get(activity_range, 90)
+    to_dt = datetime.now(tz=timezone.utc)
+    from_dt = to_dt - timedelta(days=days)
+    try:
+        resp = requests.post(
+            "https://api.github.com/graphql",
+            json={"query": _CONTRIB_QUERY, "variables": {
+                "login": login, "from": from_dt.isoformat(), "to": to_dt.isoformat()}},
+            headers={"Authorization": f"bearer {token}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return _parse_contribution_calendar(resp.json())
+    except Exception:
+        return [], 0
+
+
+# ---------------------------------------------------------------------------
 # Main entry point
 # ---------------------------------------------------------------------------
 
@@ -452,5 +490,13 @@ def fetch_github_data(config: Any) -> GitHubData:
         repo_data_list.append(rd)
 
     stats = _fetch_stats(gh, profile.login, since, repo_data_list, config.stats.language_count)
+
+    activity_range = getattr(config.stats, "activity_range", "3mo")
+    if not isinstance(activity_range, str):
+        activity_range = "3mo"
+    weeks, total = _fetch_contribution_calendar(token, profile.login, activity_range)
+    stats.contribution_weeks = weeks
+    stats.contribution_total = total
+    stats.streak_days = _compute_streak(weeks)
 
     return GitHubData(user=profile, repos=repo_data_list, stats=stats)
