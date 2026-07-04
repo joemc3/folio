@@ -132,7 +132,7 @@ class TestStatsSectionRange:
 # ---------------------------------------------------------------------------
 
 class TestStatsSectionShow:
-    @pytest.mark.parametrize("stat", ["commits", "pull_requests", "issues", "streak", "top_languages", "stars_earned"])
+    @pytest.mark.parametrize("stat", ["commits", "pull_requests", "issues", "streak", "top_languages"])
     def test_valid_stats(self, stat):
         from folio.config import StatsSection
         stats = StatsSection(show=[stat])
@@ -259,3 +259,43 @@ class TestLoadConfig:
         assert len(config.repos.include) == 1
         assert isinstance(config.repos.include[0], RepoEntry)
         assert config.repos.include[0].name == "my-string-repo"
+
+
+# ---------------------------------------------------------------------------
+# Editorial redesign: repo link, activity_range, profile email/available
+# ---------------------------------------------------------------------------
+
+def test_repo_entry_accepts_link_block():
+    from folio.config import ReposSection
+    section = ReposSection.model_validate({
+        "include": [{"name": "folio", "link": {"label": "View site", "url": "https://x.dev"}}]
+    })
+    entry = section.include[0]
+    assert entry.link.label == "View site"
+    assert entry.link.url == "https://x.dev"
+
+def test_repo_entry_without_link_is_none():
+    from folio.config import RepoEntry
+    assert RepoEntry.from_flexible("folio").link is None
+
+def test_activity_range_defaults_to_3mo():
+    from folio.config import StatsSection
+    assert StatsSection().activity_range == "3mo"
+
+def test_activity_range_rejects_invalid():
+    import pytest
+    from folio.config import StatsSection
+    with pytest.raises(ValueError, match="activity_range"):
+        StatsSection(activity_range="2yr")
+
+def test_stars_earned_no_longer_valid_stat():
+    import pytest
+    from folio.config import StatsSection
+    with pytest.raises(ValueError, match="stars_earned"):
+        StatsSection(show=["stars_earned"])
+
+def test_profile_available_for_work_and_email_defaults():
+    from folio.config import ProfileSection
+    p = ProfileSection()
+    assert p.available_for_work is False
+    assert p.email is None

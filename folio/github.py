@@ -8,6 +8,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
+import httpx
 from github import Github, GithubException
 
 
@@ -24,6 +25,13 @@ class UserProfile:
     bio: str | None
     followers: int
     following: int
+    email: str | None = None
+
+
+@dataclass
+class SiteLink:
+    label: str
+    url: str
 
 
 @dataclass
@@ -41,6 +49,8 @@ class RepoData:
     html_url: str
     readme_text: str = ""
     recent_commits: list[str] = field(default_factory=list)
+    homepage: str | None = None
+    link: SiteLink | None = None
 
 
 @dataclass
@@ -51,6 +61,8 @@ class StatsData:
     streak_days: int = 0
     stars_earned: int = 0
     languages: dict[str, float] = field(default_factory=dict)
+    contribution_weeks: list = field(default_factory=list)   # list[list[ContribDay]]
+    contribution_total: int = 0
 
 
 @dataclass
@@ -185,6 +197,7 @@ def _fetch_recent_commits(repo: Any, since: datetime | None) -> list[str]:
 def _build_repo_data(
     repo: Any,
     private_reason: str | None,
+    config_link: SiteLink | None = None,
 ) -> RepoData:
     """Convert a PyGitHub Repository to a RepoData instance."""
     fork_parent: str | None = None
@@ -198,6 +211,14 @@ def _build_repo_data(
 
     readme_text = _fetch_readme(repo)
     recent_commits = _fetch_recent_commits(repo, since=None)
+
+    homepage = getattr(repo, "homepage", None) or None
+    if config_link is not None:
+        link = config_link
+    elif homepage:
+        link = SiteLink(label="View site", url=homepage)
+    else:
+        link = None
 
     return RepoData(
         name=repo.name,
@@ -213,6 +234,8 @@ def _build_repo_data(
         html_url=repo.html_url,
         readme_text=readme_text,
         recent_commits=recent_commits,
+        homepage=homepage,
+        link=link,
     )
 
 
@@ -273,10 +296,111 @@ def _fetch_stats(gh: Any, login: str, since: datetime | None, repos: list[RepoDa
         commits=commits,
         pull_requests=pull_requests,
         issues=issues,
-        streak_days=0,  # streak requires event timeline — deferred
+        streak_days=0,
         stars_earned=stars_earned,
         languages=languages,
     )
+
+
+# ---------------------------------------------------------------------------
+# Contribution calendar helpers (pure, no network)
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class ContribDay:
+    count: int
+    level: int
+
+
+def _contribution_level(count: int, max_count: int) -> int:
+    """Map a day's contribution count to a 0–4 intensity level."""
+    if count <= 0 or max_count <= 0:
+        return 0
+    frac = count / max_count
+    if frac <= 0.25:
+        return 1
+    if frac <= 0.5:
+        return 2
+    if frac <= 0.75:
+        return 3
+    return 4
+
+
+def _parse_contribution_calendar(payload: dict) -> tuple[list[list[ContribDay]], int]:
+    """Turn a GitHub GraphQL contributionCalendar payload into weeks + total.
+
+    Raises KeyError/TypeError on a malformed payload — callers wrap in try/except.
+    """
+    cal = payload["data"]["user"]["contributionsCollection"]["contributionCalendar"]
+    total = int(cal["totalContributions"])
+    raw_weeks = cal["weeks"]
+    counts = [int(d["contributionCount"]) for w in raw_weeks for d in w["contributionDays"]]
+    max_count = max(counts) if counts else 0
+    weeks: list[list[ContribDay]] = []
+    for w in raw_weeks:
+        days = [
+            ContribDay(count=int(d["contributionCount"]),
+                       level=_contribution_level(int(d["contributionCount"]), max_count))
+            for d in w["contributionDays"]
+        ]
+        weeks.append(days)
+    return weeks, total
+
+
+def _compute_streak(weeks: list[list[ContribDay]]) -> int:
+    """Current consecutive days with contributions, counting back from today.
+
+    A trailing zero (today, not yet done) does not break the streak.
+    """
+    days = [d for w in weeks for d in w]
+    if not days:
+        return 0
+    start = len(days) - 1
+    if days[start].count == 0:
+        start -= 1
+    streak = 0
+    for i in range(start, -1, -1):
+        if days[i].count > 0:
+            streak += 1
+        else:
+            break
+    return streak
+
+
+# ---------------------------------------------------------------------------
+# Contribution calendar fetch (network, best-effort)
+# ---------------------------------------------------------------------------
+
+_ACTIVITY_DAYS = {"3mo": 90, "6mo": 182, "1yr": 365}
+
+_CONTRIB_QUERY = (
+    "query($login:String!,$from:DateTime!,$to:DateTime!){"
+    "user(login:$login){contributionsCollection(from:$from,to:$to){"
+    "contributionCalendar{totalContributions "
+    "weeks{contributionDays{contributionCount date weekday}}}}}}"
+)
+
+
+def _fetch_contribution_calendar(
+    token: str, login: str, activity_range: str
+) -> tuple[list[list[ContribDay]], int]:
+    """Best-effort GitHub GraphQL contribution calendar. Empty on any failure."""
+    days = _ACTIVITY_DAYS.get(activity_range, 90)
+    to_dt = datetime.now(tz=timezone.utc)
+    from_dt = to_dt - timedelta(days=days)
+    try:
+        resp = httpx.post(
+            "https://api.github.com/graphql",
+            json={"query": _CONTRIB_QUERY, "variables": {
+                "login": login, "from": from_dt.isoformat(), "to": to_dt.isoformat()}},
+            headers={"Authorization": f"bearer {token}"},
+            timeout=10,
+        )
+        resp.raise_for_status()
+        return _parse_contribution_calendar(resp.json())
+    except Exception:
+        return [], 0
 
 
 # ---------------------------------------------------------------------------
@@ -305,6 +429,7 @@ def fetch_github_data(config: Any) -> GitHubData:
         bio=user.bio,
         followers=user.followers,
         following=user.following,
+        email=getattr(user, "email", None) or None,
     )
 
     since = _compute_since(getattr(config.stats, "range", "3mo"))
@@ -313,19 +438,30 @@ def fetch_github_data(config: Any) -> GitHubData:
     include_list = config.repos.include  # list[dict] or None
     exclude_set: set[str] = set(config.repos.exclude or [])
 
-    include_map: dict[str, str | None] | None = None
+    def _entry_link(entry) -> SiteLink | None:
+        # dict entry
+        if isinstance(entry, dict):
+            raw = entry.get("link")
+            if isinstance(raw, dict) and raw.get("label") and raw.get("url"):
+                return SiteLink(label=raw["label"], url=raw["url"])
+            return None
+        # pydantic RepoEntry (or attr-style)
+        raw = getattr(entry, "link", None)
+        if raw is not None and getattr(raw, "label", None) and getattr(raw, "url", None):
+            return SiteLink(label=raw.label, url=raw.url)
+        return None
+
+    include_map: dict[str, tuple[str | None, SiteLink | None]] | None = None
     if include_list is not None:
         include_map = {}
         for entry in include_list:
-            # entry may be a dict or a MagicMock-like object with .name / .get()
             if isinstance(entry, dict):
                 repo_name = entry["name"]
                 reason = entry.get("private_reason")
             else:
-                # Attribute-style access (e.g. pydantic models)
                 repo_name = entry.name
                 reason = getattr(entry, "private_reason", None)
-            include_map[repo_name] = reason
+            include_map[repo_name] = (reason, _entry_link(entry))
 
     # Fetch repos
     all_repos = user.get_repos()
@@ -345,13 +481,22 @@ def fetch_github_data(config: Any) -> GitHubData:
         if repo.name in exclude_set:
             continue
 
-        private_reason: str | None = None
+        private_reason = None
+        config_link: SiteLink | None = None
         if include_map is not None:
-            private_reason = include_map.get(repo.name)
+            private_reason, config_link = include_map.get(repo.name, (None, None))
 
-        rd = _build_repo_data(repo, private_reason=private_reason)
+        rd = _build_repo_data(repo, private_reason=private_reason, config_link=config_link)
         repo_data_list.append(rd)
 
     stats = _fetch_stats(gh, profile.login, since, repo_data_list, config.stats.language_count)
+
+    activity_range = getattr(config.stats, "activity_range", "3mo")
+    if not isinstance(activity_range, str):
+        activity_range = "3mo"
+    weeks, total = _fetch_contribution_calendar(token, profile.login, activity_range)
+    stats.contribution_weeks = weeks
+    stats.contribution_total = total
+    stats.streak_days = _compute_streak(weeks)
 
     return GitHubData(user=profile, repos=repo_data_list, stats=stats)

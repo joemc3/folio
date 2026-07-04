@@ -196,6 +196,7 @@ def _make_mock_repo(
     private=False,
     parent=None,
     readme_content="README content here",
+    homepage=None,
 ):
     """Build a mock PyGitHub Repository object."""
     repo = MagicMock()
@@ -209,6 +210,7 @@ def _make_mock_repo(
     repo.private = private
     repo.html_url = f"https://github.com/jdoe/{name}"
     repo.parent = parent
+    repo.homepage = homepage
 
     # get_readme mock
     mock_readme = MagicMock()
@@ -239,6 +241,7 @@ def _make_mock_github(repos, login="jdoe", name="Jane Doe"):
     mock_user.bio = "Engineer"
     mock_user.followers = 42
     mock_user.following = 10
+    mock_user.email = None
 
     # get_repos returns all repos
     mock_user.get_repos.return_value = repos
@@ -422,3 +425,155 @@ class TestFetchGithubData:
         assert isinstance(result.stats.commits, int)
         assert isinstance(result.stats.pull_requests, int)
         assert isinstance(result.stats.issues, int)
+
+
+# ---------------------------------------------------------------------------
+# Second link resolution tests
+# ---------------------------------------------------------------------------
+
+class TestSecondLink:
+    def test_link_from_config_wins_with_custom_label(self):
+        from folio.github import fetch_github_data
+        repo = _make_mock_repo(name="folio", homepage="https://ignored.example")
+        config = _make_config(include=[
+            {"name": "folio", "link": {"label": "View site", "url": "https://joe.dev/folio"}}
+        ])
+        # include carries pydantic-style entries in real use; dict is accepted by fetch too
+        mock_gh = _make_mock_github([repo])
+        with patch("folio.github.get_github_token", return_value="t"), \
+             patch("folio.github.Github", return_value=mock_gh):
+            result = fetch_github_data(config)
+        link = result.repos[0].link
+        assert link is not None
+        assert link.label == "View site"
+        assert link.url == "https://joe.dev/folio"
+
+    def test_link_falls_back_to_homepage_as_view_site(self):
+        from folio.github import fetch_github_data
+        repo = _make_mock_repo(name="folio", homepage="https://joe.dev/folio")
+        config = _make_config(include=[{"name": "folio"}])
+        mock_gh = _make_mock_github([repo])
+        with patch("folio.github.get_github_token", return_value="t"), \
+             patch("folio.github.Github", return_value=mock_gh):
+            result = fetch_github_data(config)
+        link = result.repos[0].link
+        assert link.label == "View site"
+        assert link.url == "https://joe.dev/folio"
+
+    def test_no_link_when_neither(self):
+        from folio.github import fetch_github_data
+        repo = _make_mock_repo(name="folio", homepage=None)
+        config = _make_config(include=[{"name": "folio"}])
+        mock_gh = _make_mock_github([repo])
+        with patch("folio.github.get_github_token", return_value="t"), \
+             patch("folio.github.Github", return_value=mock_gh):
+            result = fetch_github_data(config)
+        assert result.repos[0].link is None
+        assert result.repos[0].homepage is None
+
+
+# ---------------------------------------------------------------------------
+# Contribution helpers tests
+# ---------------------------------------------------------------------------
+
+class TestContributionHelpers:
+    def _payload(self, week_counts):
+        # week_counts: list of 7-int lists
+        return {"data": {"user": {"contributionsCollection": {"contributionCalendar": {
+            "totalContributions": sum(c for w in week_counts for c in w),
+            "weeks": [
+                {"contributionDays": [
+                    {"contributionCount": c, "date": "2026-01-01", "weekday": i}
+                    for i, c in enumerate(w)
+                ]} for w in week_counts
+            ]}}}}}
+
+    def test_level_buckets(self):
+        from folio.github import _contribution_level
+        assert _contribution_level(0, 10) == 0
+        assert _contribution_level(1, 100) == 1       # 1% -> low bucket
+        assert _contribution_level(50, 100) == 2      # 50%
+        assert _contribution_level(75, 100) == 3      # 75%
+        assert _contribution_level(100, 100) == 4     # max
+        assert _contribution_level(5, 0) == 0         # no max -> 0
+
+    def test_parse_calendar(self):
+        from folio.github import _parse_contribution_calendar
+        weeks, total = _parse_contribution_calendar(self._payload([[0, 4, 0, 0, 0, 0, 0], [2, 0, 0, 0, 0, 0, 0]]))
+        assert total == 6
+        assert len(weeks) == 2
+        assert len(weeks[0]) == 7
+        assert weeks[0][1].count == 4
+        assert weeks[0][1].level == 4      # 4 is the max -> level 4
+        assert weeks[0][0].level == 0
+
+    def test_streak_counts_trailing_active_days(self):
+        from folio.github import _parse_contribution_calendar, _compute_streak
+        # last recorded day (today) is 0 -> ignored; two active days before it
+        weeks, _ = _parse_contribution_calendar(self._payload([[0, 0, 0, 0, 1, 2, 0]]))
+        assert _compute_streak(weeks) == 2
+
+    def test_streak_breaks_on_zero(self):
+        from folio.github import _parse_contribution_calendar, _compute_streak
+        weeks, _ = _parse_contribution_calendar(self._payload([[3, 0, 5, 5, 5, 5, 5]]))
+        assert _compute_streak(weeks) == 5     # last is 5, counts back until the 0
+
+    def test_streak_empty(self):
+        from folio.github import _compute_streak
+        assert _compute_streak([]) == 0
+
+
+# ---------------------------------------------------------------------------
+# Contribution fetch tests (network, mocked via httpx.post)
+# ---------------------------------------------------------------------------
+
+class TestContributionFetch:
+    def _resp(self, payload):
+        r = MagicMock()
+        r.raise_for_status.return_value = None
+        r.json.return_value = payload
+        return r
+
+    def test_fetch_parses_when_post_succeeds(self):
+        from folio.github import _fetch_contribution_calendar
+        payload = {"data": {"user": {"contributionsCollection": {"contributionCalendar": {
+            "totalContributions": 5,
+            "weeks": [{"contributionDays": [{"contributionCount": 5, "date": "2026-01-01", "weekday": 0}]}]}}}}}
+        with patch("folio.github.httpx.post", return_value=self._resp(payload)):
+            weeks, total = _fetch_contribution_calendar("t", "joe", "3mo")
+        assert total == 5
+        assert weeks[0][0].count == 5
+
+    def test_fetch_returns_empty_on_failure(self):
+        from folio.github import _fetch_contribution_calendar
+        # autouse stub already makes httpx.post raise
+        weeks, total = _fetch_contribution_calendar("t", "joe", "3mo")
+        assert weeks == []
+        assert total == 0
+
+    def test_fetch_github_data_populates_contributions(self):
+        from folio.github import fetch_github_data
+        payload = {"data": {"user": {"contributionsCollection": {"contributionCalendar": {
+            "totalContributions": 3,
+            "weeks": [{"contributionDays": [{"contributionCount": 1, "date": "2026-01-01", "weekday": 0},
+                                            {"contributionCount": 2, "date": "2026-01-02", "weekday": 1}]}]}}}}}
+        repo = _make_mock_repo()
+        mock_gh = _make_mock_github([repo])
+        with patch("folio.github.get_github_token", return_value="t"), \
+             patch("folio.github.Github", return_value=mock_gh), \
+             patch("folio.github.httpx.post", return_value=self._resp(payload)):
+            result = fetch_github_data(_make_config())
+        assert result.stats.contribution_total == 3
+        assert len(result.stats.contribution_weeks) == 1
+        assert result.stats.streak_days == 2   # last day count=2 (>0), prior=1 (>0)
+
+    def test_fetch_github_data_survives_contribution_failure(self):
+        from folio.github import fetch_github_data
+        repo = _make_mock_repo()
+        mock_gh = _make_mock_github([repo])
+        # autouse stub: httpx.post raises -> empty, generate must not break
+        with patch("folio.github.get_github_token", return_value="t"), \
+             patch("folio.github.Github", return_value=mock_gh):
+            result = fetch_github_data(_make_config())
+        assert result.stats.contribution_weeks == []
+        assert result.stats.streak_days == 0

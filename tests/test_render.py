@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
+import re
 from datetime import datetime, timezone
 
 import pytest
 
 from folio.config import ProfileConfig, ProfileSection, ThemeSection, StatsSection
-from folio.github import RepoData, StatsData, UserProfile
+from folio.github import RepoData, SiteLink, StatsData, UserProfile
 from folio.summarize import EnrichedData
 
 
@@ -41,6 +42,8 @@ def _make_public_repo() -> RepoData:
         html_url="https://github.com/testdev/public-project",
         readme_text="# Public Project\nA nice tool.",
         recent_commits=["Initial commit", "Add feature X"],
+        homepage="https://public-project.example",
+        link=SiteLink(label="View site", url="https://public-project.example"),
     )
 
 
@@ -77,6 +80,8 @@ def _make_fork_repo() -> RepoData:
 
 
 def _make_stats() -> StatsData:
+    from folio.github import ContribDay
+
     return StatsData(
         commits=150,
         pull_requests=25,
@@ -84,6 +89,8 @@ def _make_stats() -> StatsData:
         streak_days=7,
         stars_earned=100,
         languages={"Python": 0.6, "Go": 0.3, "TypeScript": 0.1},
+        contribution_weeks=[[ContribDay(count=(i % 5), level=(i % 5)) for i in range(7)]],
+        contribution_total=42,
     )
 
 
@@ -281,18 +288,16 @@ class TestRenderStyle:
 
         assert "--accent:" in result
 
-    def test_accent_resolved_from_languages_when_auto(self):
+    def test_accent_defaults_to_terracotta_when_auto(self):
         from folio.render import render_style
-        from folio.colors import get_accent_from_languages
 
         data = _make_enriched_data()
         config = _make_config()
-        # config has accent=None which triggers auto resolution
+        # config has accent=None which now falls through to the designed
+        # Editorial terracotta rather than a language-derived color.
         result = render_style(data, config)
 
-        # Python is top language (0.6), so accent should be Python's color
-        expected_accent = get_accent_from_languages(data.stats.languages)
-        assert expected_accent in result
+        assert "#ff6a3c" in result  # dark Editorial accent
 
     def test_accent_explicit_override(self):
         from folio.render import render_style
@@ -309,3 +314,97 @@ class TestRenderStyle:
         result = render_style(data, config)
 
         assert "#ff5500" in result
+
+
+# ---------------------------------------------------------------------------
+# Tests: Editorial redesign contract
+# ---------------------------------------------------------------------------
+
+class TestEditorialProfile:
+    """Behavioral contract for the Editorial (1A) profile page."""
+
+    def test_no_stars_anywhere(self):
+        from folio.render import render_profile
+        result = render_profile(_make_enriched_data(), _make_config())
+        assert "★" not in result
+        assert "stars" not in result.lower()
+
+    def test_second_link_renders_when_present(self):
+        from folio.render import render_profile
+        result = render_profile(_make_enriched_data(), _make_config())
+        assert "View site" in result
+        assert "https://public-project.example" in result
+
+    def test_second_link_absent_for_private_repo(self):
+        # secret-tool has no link -> its label must not appear as a second link
+        from folio.render import render_profile
+        result = render_profile(_make_enriched_data(), _make_config())
+        assert "secret-tool" in result            # still listed
+        assert 'href="https://github.com/testdev/secret-tool"' not in result
+
+    def test_heatmap_cells_present(self):
+        from folio.render import render_profile
+        result = render_profile(_make_enriched_data(), _make_config())
+        assert "heat-cell" in result              # css class used by each day cell
+
+    def test_available_for_work_badge_conditional(self):
+        from folio.render import render_profile
+        # default config: available_for_work False -> no badge
+        assert "Available for work" not in render_profile(_make_enriched_data(), _make_config())
+        raw = {
+            "profile": {"name": "T", "available_for_work": True, "social": {}},
+            "ai": {"provider": "anthropic", "model": "claude-sonnet-4-6"},
+            "theme": {"name": "dark", "accent": None},
+            "stats": {"range": "3mo", "show": ["commits"]},
+        }
+        cfg = ProfileConfig.model_validate(raw)
+        assert "Available for work" in render_profile(_make_enriched_data(), cfg)
+
+    def test_activity_header_reads_months_not_weeks(self):
+        """Activity section header should read 'last N months', derived from
+        stats.activity_range (3mo -> 3), not a count of contribution_weeks."""
+        from folio.render import render_profile
+
+        data = _make_enriched_data()
+        config = _make_config()  # activity_range defaults to "3mo"
+        result = render_profile(data, config)
+
+        match = re.search(r'<span class="label">(Activity.*?)</span>', result)
+        assert match is not None
+        assert match.group(1) == "Activity — last 3 months"
+
+    def test_render_profile_does_not_raise_on_empty_name_and_login(self):
+        """If both the resolved display name and the GitHub login are empty
+        strings, the masthead h1 and avatar monogram must not raise
+        IndexError — they should fall back to '?'."""
+        from folio.render import render_profile
+
+        empty_user = UserProfile(
+            login="",
+            name="",
+            avatar_url="",
+            bio=None,
+            followers=0,
+            following=0,
+        )
+        data = EnrichedData(
+            user=empty_user,
+            repos=[],
+            stats=None,
+            summaries={},
+            fork_diffs={},
+        )
+        # profile.name is left unset (defaults to "") so full_name resolves
+        # to (user.name or user.login), which is also "".
+        raw = {
+            "profile": {"social": {}},
+            "ai": {"provider": "anthropic", "model": "claude-sonnet-4-6"},
+            "theme": {"name": "dark", "accent": None},
+            "stats": {"range": "3mo", "show": []},
+        }
+        config = ProfileConfig.model_validate(raw)
+
+        result = render_profile(data, config)
+
+        assert isinstance(result, str)
+        assert "?" in result

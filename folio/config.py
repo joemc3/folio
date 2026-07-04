@@ -15,8 +15,20 @@ from pydantic import BaseModel, field_validator, model_validator
 
 VALID_PROVIDERS = {"anthropic", "openai", "ollama", "openrouter"}
 VALID_RANGES = {"1mo", "3mo", "1yr", "alltime"}
-VALID_STATS = {"commits", "pull_requests", "issues", "streak", "top_languages", "stars_earned"}
+VALID_STATS = {"commits", "pull_requests", "issues", "streak", "top_languages"}
+VALID_ACTIVITY_RANGES = {"3mo", "6mo", "1yr"}
 VALID_THEMES = {"dark", "light", "auto"}
+
+
+# ---------------------------------------------------------------------------
+# RepoLink
+# ---------------------------------------------------------------------------
+
+class RepoLink(BaseModel):
+    """A second link for a project (live site, demo, App Store, …)."""
+
+    label: str
+    url: str
 
 
 # ---------------------------------------------------------------------------
@@ -28,6 +40,7 @@ class RepoEntry(BaseModel):
 
     name: str
     private_reason: str | None = None
+    link: RepoLink | None = None
 
     @classmethod
     def from_flexible(cls, value: Any) -> "RepoEntry":
@@ -65,6 +78,8 @@ class ProfileSection(BaseModel):
     location: str | None = None
     resume_url: str | None = None
     avatar: str | None = None
+    email: str | None = None
+    available_for_work: bool = False
     social: SocialSection = SocialSection()
 
     @field_validator("social", mode="before")
@@ -145,6 +160,7 @@ class StatsSection(BaseModel):
     range: str = "3mo"
     show: list[str] = []
     language_count: int = 5
+    activity_range: str = "3mo"
 
     @field_validator("range")
     @classmethod
@@ -165,6 +181,16 @@ class StatsSection(BaseModel):
                 raise ValueError(
                     f"Invalid stat {item!r}. Must be one of: {', '.join(sorted(VALID_STATS))}"
                 )
+        return v
+
+    @field_validator("activity_range")
+    @classmethod
+    def validate_activity_range(cls, v: str) -> str:
+        if v not in VALID_ACTIVITY_RANGES:
+            raise ValueError(
+                f"Invalid activity_range {v!r}. Must be one of: "
+                f"{', '.join(sorted(VALID_ACTIVITY_RANGES))}"
+            )
         return v
 
 

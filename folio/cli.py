@@ -413,7 +413,8 @@ def init(
         },
         "stats": {
             "range": stats_range,
-            "show": ["commits", "pull_requests", "issues", "streak", "top_languages", "stars_earned"],
+            "activity_range": "3mo",
+            "show": ["commits", "pull_requests", "issues", "streak", "top_languages"],
             "language_count": 6,
         },
         "theme": {
