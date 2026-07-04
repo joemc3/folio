@@ -2,6 +2,6 @@
 
 > Generate a spectacular GitHub profile page from your local machine.
 
-This README will be replaced when you run `folio generate`. That's the point — Folio turns this repo into your GitHub profile.
+**This is a placeholder** — running `folio generate` replaces it with your generated profile. **Developers looking for the real project README and docs: see [FOLIO.md](FOLIO.md).**
 
 **→ [Get started](FOLIO.md)**

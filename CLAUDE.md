@@ -4,7 +4,13 @@ Guidance for Claude Code working in this repo. Keep it lean — facts that aren'
 
 ## What Folio is
 
-A Python CLI that generates a GitHub profile page (README + a full HTML site under `dist/`) from your GitHub data and AI summaries. The repo is meant to be **forked and renamed to `username/username`** — so this repo *is* the user's profile repo. User-facing docs live in `FOLIO.md`.
+A Python CLI that generates a GitHub profile page (README + a full HTML site under `dist/`) from your GitHub data and AI summaries. User-facing docs live in `FOLIO.md`.
+
+This codebase plays **two roles** — know which checkout you're in before committing generated output:
+
+- **Upstream tool** (`*/folio`, e.g. `joemc3/folio`): the open-source project people fork. Here `dist/` is gitignored build output, `README.md` is a placeholder, and `.profile.yml` + any generated profile output are personal — **never commit them**.
+- **Profile deployment** (a fork renamed to `username/username`): the generated `README.md` and the `dist/` site *are* the published GitHub Pages artifacts and are meant to be committed/deployed.
+- **How to tell:** the repo name / git remote. `*/folio` + placeholder README + gitignored `dist/` → tool; `username/username` (owner == repo name) + a generated README → deployment.
 
 ## Commands
 
@@ -42,7 +48,7 @@ Use the venv interpreter directly — **never** `source .venv/bin/activate`.
 ## Config & generated files
 
 - `.profile.yml` — the user's config. **Gitignored, personal, never committed.** `.profile.yml.example` is the committed template; keep it in sync when config schema changes.
-- `dist/` **is committed** — it's the deployed GitHub Pages site, not a throwaway build dir. Regenerate it (don't hand-edit) and commit the result.
+- `dist/` is **gitignored build output in the tool repo** — regenerate with `folio generate`, don't hand-edit. It's the committed GitHub Pages site *only* in a `username/username` profile deployment.
 - AI provider is pluggable via LiteLLM (anthropic / openai / openrouter / ollama); key comes from an env var, model from `.profile.yml`.
 
 ## Conventions (binding)
